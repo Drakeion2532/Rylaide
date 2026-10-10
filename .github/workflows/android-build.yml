@@ -32,6 +32,13 @@ jobs:
           fi
           exit $code
 
+      - name: Inspect Opus library (temporary)
+        if: always()
+        run: |
+          jar=$(find ~/.gradle -name 'concentus*.jar' ! -name '*sources*' | head -1)
+          msg=$(unzip -l "$jar" | grep -E "Opus(Encoder|Decoder|Application|Signal|Exception)\.class" | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::warning title=Opus jar::${jar}%0A${msg}"
+
       - name: Run unit tests
         run: |
           set +e
