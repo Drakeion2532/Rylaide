@@ -89,6 +89,9 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var sent by remember { mutableLongStateOf(0L) }
     var received by remember { mutableLongStateOf(0L) }
     var level by remember { mutableStateOf(0.0) }
+    var concealed by remember { mutableLongStateOf(0L) }
+    var late by remember { mutableLongStateOf(0L) }
+    var buffered by remember { mutableStateOf(0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -108,6 +111,9 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             sent = vm.framesSent.get()
             received = vm.framesReceived.get()
             level = vm.currentLevel
+            concealed = vm.concealedFrames
+            late = vm.lateFrames
+            buffered = vm.bufferedMs
             delay(500)
         }
     }
@@ -119,7 +125,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Rylaide · Sprint 1 · offline intercom test", style = MaterialTheme.typography.titleLarge)
+        Text("Rylaide · Step 2 · offline intercom test", style = MaterialTheme.typography.titleLarge)
         Text(
             "Turn Bluetooth, Wi-Fi and Location ON on both phones. Mobile data can be off. " +
                 "Use a headset or earphones, or keep the phones in different rooms, or the speaker will squeal.",
@@ -178,7 +184,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             if (vm.peers.isEmpty()) "Connected riders: none yet"
             else "Connected riders: " + vm.peers.joinToString { it.name }
         )
-        Text("Frames sent: $sent   ·   received: $received")
+        Text("Voice packets sent: $sent   ·   received: $received")
+        Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (speech is sent above ${vm.vadThreshold.toInt()})")
         Row(modifier = Modifier.fillMaxWidth()) {
             Slider(

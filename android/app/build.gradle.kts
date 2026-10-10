@@ -53,10 +53,14 @@ dependencies {
 
     // Mesh peer discovery over Wi-Fi Direct/Bluetooth, wrapped by Google Play Services
     implementation("com.google.android.gms:play-services-nearby:19.3.0")
+    // Opus voice compression, pure Java
+    implementation("io.github.jaredmdobson:concentus:1.0.2")
 
     // Voice does not use WebRTC any more: offline audio goes over Nearby
     // Connections (see audio/IntercomAudioEngine.kt) and online voice will use
     // LiveKit later. The old WebRTC dependency was removed to keep builds light.
+
+    testImplementation("junit:junit:4.13.2")
 
     // TODO: add MapLibre Native (free, no key) when the map screen is built
 }

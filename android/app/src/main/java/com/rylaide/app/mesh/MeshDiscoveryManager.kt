@@ -33,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Messages sent over the link are small BYTES payloads. The first byte is the
  * message type so SOS, positions and chat can share the same link later.
  *
+ * Voice packets are [type][sequence 2 bytes][Opus data].
+ *
  * Sprint 1 limits (on purpose, to be fixed later):
  *  - Connections are auto-accepted for any phone using the same group code.
  *    Before launch, add a proper check (shared secret or the authentication
@@ -46,7 +48,7 @@ class MeshDiscoveryManager(
     interface Listener {
         fun onStatus(message: String)
         fun onPeersChanged(peers: List<Peer>)
-        fun onAudioFrame(fromEndpointId: String, pcm: ByteArray)
+        fun onAudioFrame(fromEndpointId: String, packet: ByteArray)
     }
 
     data class Peer(val endpointId: String, val name: String)
@@ -55,6 +57,13 @@ class MeshDiscoveryManager(
         private const val SERVICE_ID = "com.rylaide.app.mesh"
         const val TYPE_AUDIO: Byte = 1
         private const val RETRY_DELAY_MS = 2000L
+        // The phone with the larger id waits this long for the other phone to
+        // connect first, then requests the connection itself. This avoids the
+        // long waits when only one of the two phones manages to discover the other.
+        private const val SECOND_CHANCE_DELAY_MS = 3000L
+        // If nobody has connected for this long, restart searching. Bluetooth
+        // scanning on some phones quietly stalls.
+        private const val WATCHDOG_MS = 15000L
     }
 
     private val client: ConnectionsClient = Nearby.getConnectionsClient(context.applicationContext)
@@ -66,6 +75,8 @@ class MeshDiscoveryManager(
 
     @Volatile
     private var running = false
+    private var startedAtMs = 0L
+    private var firstConnectionLogged = false
 
     // endpointId -> name, for phones we are fully connected to
     private val connected = ConcurrentHashMap<String, String>()
@@ -90,8 +101,26 @@ class MeshDiscoveryManager(
         this.groupCode = groupCode.trim().uppercase().replace("|", "")
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
         running = true
+        startedAtMs = System.currentTimeMillis()
+        firstConnectionLogged = false
         startAdvertising()
         startDiscovery()
+        mainHandler.postDelayed(watchdog, WATCHDOG_MS)
+    }
+
+    /** Restarts advertising and searching while we have no connections. */
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (!running) return
+            if (connected.isEmpty() && pending.isEmpty()) {
+                listener.onStatus("Still searching, restarting the search…")
+                client.stopAdvertising()
+                client.stopDiscovery()
+                startAdvertising()
+                startDiscovery()
+            }
+            mainHandler.postDelayed(this, WATCHDOG_MS)
+        }
     }
 
     fun stop() {
@@ -109,12 +138,12 @@ class MeshDiscoveryManager(
 
     fun connectedCount(): Int = connected.size
 
-    /** Sends one audio frame (raw 16-bit PCM) to everyone connected. */
-    fun sendAudio(pcm: ByteArray) {
+    /** Sends one voice packet (sequence number + Opus data) to everyone connected. */
+    fun sendAudio(packet: ByteArray) {
         if (connected.isEmpty()) return
-        val message = ByteArray(pcm.size + 1)
+        val message = ByteArray(packet.size + 1)
         message[0] = TYPE_AUDIO
-        System.arraycopy(pcm, 0, message, 1, pcm.size)
+        System.arraycopy(packet, 0, message, 1, packet.size)
         client.sendPayload(connected.keys.toList(), Payload.fromBytes(message))
     }
 
@@ -146,8 +175,16 @@ class MeshDiscoveryManager(
             val (code, theirId, _) = parse(info.endpointName) ?: return
             if (code != groupCode || theirId == riderId) return
             discovered[endpointId] = theirId
-            // Only the phone with the smaller id starts the connection.
-            if (riderId < theirId) requestConnectionTo(endpointId)
+            if (riderId < theirId) {
+                // The phone with the smaller id starts the connection at once.
+                requestConnectionTo(endpointId)
+            } else {
+                // The other phone gets a short head start, then we try ourselves
+                // in case it never found us.
+                mainHandler.postDelayed({
+                    if (running && discovered.containsKey(endpointId)) requestConnectionTo(endpointId)
+                }, SECOND_CHANCE_DELAY_MS)
+            }
         }
 
         override fun onEndpointLost(endpointId: String) {
@@ -174,10 +211,20 @@ class MeshDiscoveryManager(
             if (result.status.isSuccess) {
                 val name = names[endpointId] ?: endpointId
                 connected[endpointId] = name
-                listener.onStatus("Connected to rider $name")
+                val seconds = (System.currentTimeMillis() - startedAtMs) / 1000
+                if (!firstConnectionLogged) {
+                    firstConnectionLogged = true
+                    listener.onStatus("Connected to rider $name after $seconds s")
+                } else {
+                    listener.onStatus("Connected to rider $name")
+                }
                 notifyPeers()
             } else {
-                listener.onStatus("Could not connect (${result.status.statusMessage ?: result.status.statusCode})")
+                listener.onStatus("Could not connect (${result.status.statusMessage ?: result.status.statusCode}), trying again")
+                // Try again shortly if they are still around.
+                if (running && discovered.containsKey(endpointId)) {
+                    mainHandler.postDelayed({ requestConnectionTo(endpointId) }, RETRY_DELAY_MS)
+                }
             }
         }
 
@@ -188,8 +235,7 @@ class MeshDiscoveryManager(
             listener.onStatus("A rider went out of range. Reconnecting…")
             // If they are still around, try again. Discovery stays on, so if
             // they come back later it will find them again by itself.
-            val theirId = discovered[endpointId]
-            if (running && theirId != null && riderId < theirId) {
+            if (running && discovered.containsKey(endpointId)) {
                 mainHandler.postDelayed({ requestConnectionTo(endpointId) }, RETRY_DELAY_MS)
             }
         }
@@ -199,7 +245,7 @@ class MeshDiscoveryManager(
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             if (payload.type != Payload.Type.BYTES) return
             val bytes = payload.asBytes() ?: return
-            if (bytes.size < 2) return
+            if (bytes.size < 4) return
             if (bytes[0] == TYPE_AUDIO) {
                 listener.onAudioFrame(endpointId, bytes.copyOfRange(1, bytes.size))
             }

@@ -39,12 +39,15 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     val framesReceived = AtomicLong(0)
 
     private val mesh = MeshDiscoveryManager(app, this)
-    private val engine = IntercomAudioEngine { frame ->
-        mesh.sendAudio(frame)
+    private val engine = IntercomAudioEngine { packet ->
+        mesh.sendAudio(packet)
         framesSent.incrementAndGet()
     }
 
     val currentLevel: Double get() = engine.vad.lastRms
+    val concealedFrames: Long get() = engine.concealedFrames
+    val lateFrames: Long get() = engine.lateFrames
+    val bufferedMs: Int get() = engine.bufferedMs
     private var thresholdState by mutableStateOf(engine.vad.threshold)
     var vadThreshold: Double
         get() = thresholdState
@@ -67,7 +70,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 4 (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 5, Opus (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -114,11 +117,12 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
 
     override fun onPeersChanged(peers: List<MeshDiscoveryManager.Peer>) {
         this.peers = peers
+        engine.keepOnly(peers.map { it.endpointId })
     }
 
-    override fun onAudioFrame(fromEndpointId: String, pcm: ByteArray) {
+    override fun onAudioFrame(fromEndpointId: String, packet: ByteArray) {
         framesReceived.incrementAndGet()
-        engine.enqueuePlayback(pcm)
+        engine.enqueuePlayback(fromEndpointId, packet)
     }
 
     override fun onCleared() {

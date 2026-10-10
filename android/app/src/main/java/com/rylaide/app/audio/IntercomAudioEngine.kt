@@ -8,35 +8,26 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
+import android.os.Process
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Captures the rider's voice and plays back other riders' voices.
  *
- * Sprint 1 sends raw 16 kHz mono 16-bit audio in 20 ms frames (640 bytes each,
- * about 256 kbit/s). That is wasteful but simple, and fine for two phones
- * linked by Wi-Fi Direct. The next step is Opus (about 16 kbit/s) so a group
- * of riders fits on a Bluetooth link too.
- *
- * Known limits for now:
- *  - Frames from several talkers are played one after another, not mixed.
- *    That is fine for two phones. A real mixer comes before group tests.
- *  - Playback has a small queue; if the link stalls, the oldest audio is
- *    dropped so the rider never hears a growing delay.
+ * Step 2: voice is compressed with Opus (about 16 kbit/s, 16x smaller than the
+ * raw audio of Step 1). Each packet is [sequence number: 2 bytes][Opus data].
+ * Every remote rider gets their own jitter buffer and decoder, and a mixer adds
+ * all talkers together once per 20 ms, so several riders can speak at once.
  *
  * The caller must hold the RECORD_AUDIO permission before calling [start].
  */
 class IntercomAudioEngine(
-    private val onMicFrame: (ByteArray) -> Unit
+    private val onMicPacket: (ByteArray) -> Unit
 ) {
 
     companion object {
         const val SAMPLE_RATE = 16000
         const val FRAME_SAMPLES = 320 // 20 ms at 16 kHz
-        private const val MAX_QUEUED_FRAMES = 15 // 300 ms
     }
 
     /** Open mic: when true, speech is sent to the group. */
@@ -54,14 +45,31 @@ class IntercomAudioEngine(
     private var noiseSuppressor: NoiseSuppressor? = null
     private var captureThread: Thread? = null
     private var playbackThread: Thread? = null
-    private val playQueue = LinkedBlockingQueue<ByteArray>()
+    private val encoder = OpusVoiceEncoder()
+    private var sendSeq = 0
+
+    private class PeerStream {
+        val jitter = JitterBuffer()
+        val decoder = OpusVoiceDecoder()
+    }
+    private val peers = ConcurrentHashMap<String, PeerStream>()
+
+    /** Frames the codec had to make up because a packet never arrived. */
+    val concealedFrames: Long get() = peers.values.sumOf { it.jitter.concealed }
+
+    /** Packets that arrived too late to play. */
+    val lateFrames: Long get() = peers.values.sumOf { it.jitter.lateDropped }
+
+    /** How much audio is waiting to be played, in milliseconds (all riders added). */
+    val bufferedMs: Int get() = peers.values.sumOf { it.jitter.bufferedFrames } * 20
 
     @SuppressLint("MissingPermission")
     fun start() {
         if (running) return
         running = true
         vad.reset()
-        playQueue.clear()
+        peers.clear()
+        sendSeq = 0
 
         val minRecord = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -100,7 +108,7 @@ class IntercomAudioEngine(
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
-            .setBufferSizeInBytes(maxOf(minTrack, FRAME_SAMPLES * 2 * 4))
+            .setBufferSizeInBytes(maxOf(minTrack, FRAME_SAMPLES * 2 * 2))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         track = tr
@@ -134,17 +142,27 @@ class IntercomAudioEngine(
             it.release()
         }
         track = null
-        playQueue.clear()
+        peers.clear()
     }
 
-    /** Called with audio received from another rider. Safe from any thread. */
-    fun enqueuePlayback(pcm: ByteArray) {
-        if (!running) return
-        playQueue.offer(pcm)
-        while (playQueue.size > MAX_QUEUED_FRAMES) playQueue.poll()
+    /**
+     * Called with a voice packet received from another rider. Safe from any
+     * thread. [packet] is the 2-byte sequence number followed by Opus data.
+     */
+    fun enqueuePlayback(endpointId: String, packet: ByteArray) {
+        if (!running || packet.size < 3) return
+        val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
+        val stream = peers.getOrPut(endpointId) { PeerStream() }
+        stream.jitter.put(seq, packet.copyOfRange(2, packet.size))
+    }
+
+    /** Forget riders who are no longer connected. */
+    fun keepOnly(endpointIds: Collection<String>) {
+        peers.keys.retainAll(endpointIds.toSet())
     }
 
     private fun captureLoop(rec: AudioRecord) {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         val buffer = ShortArray(FRAME_SAMPLES)
         rec.startRecording()
         while (running) {
@@ -158,21 +176,42 @@ class IntercomAudioEngine(
             // Always read so the recorder never backs up, but only send when
             // the mic is open and the chunk looks like speech.
             if (micOpen && vad.isSpeech(buffer)) {
-                onMicFrame(shortsToBytes(buffer))
+                val opus = encoder.encode(buffer) ?: continue
+                val packet = ByteArray(opus.size + 2)
+                packet[0] = (sendSeq shr 8).toByte()
+                packet[1] = sendSeq.toByte()
+                sendSeq = (sendSeq + 1) and 0xFFFF
+                System.arraycopy(opus, 0, packet, 2, opus.size)
+                onMicPacket(packet)
             }
         }
     }
 
+    /**
+     * Every 20 ms: take one frame from each talking rider, add them together
+     * and play the result. Writing to the AudioTrack blocks until it has room,
+     * which keeps this loop paced at real time.
+     */
     private fun playbackLoop(tr: AudioTrack) {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+        val mix = IntArray(FRAME_SAMPLES)
+        val pcm = ShortArray(FRAME_SAMPLES)
+        val out = ShortArray(FRAME_SAMPLES)
         while (running) {
-            val frame = playQueue.poll(100, TimeUnit.MILLISECONDS) ?: continue
-            tr.write(frame, 0, frame.size)
+            java.util.Arrays.fill(mix, 0)
+            for (stream in peers.values) {
+                val ok = when (val r = stream.jitter.take()) {
+                    is JitterBuffer.Result.Packet -> stream.decoder.decode(r.data, pcm)
+                    JitterBuffer.Result.Missing -> stream.decoder.conceal(pcm)
+                    JitterBuffer.Result.Nothing -> false
+                }
+                if (ok) for (i in 0 until FRAME_SAMPLES) mix[i] += pcm[i].toInt()
+            }
+            for (i in 0 until FRAME_SAMPLES) {
+                out[i] = mix[i].coerceIn(-32768, 32767).toShort()
+            }
+            val written = tr.write(out, 0, FRAME_SAMPLES)
+            if (written < 0) Thread.sleep(20) // track not ready: avoid a busy loop
         }
-    }
-
-    private fun shortsToBytes(samples: ShortArray): ByteArray {
-        val bytes = ByteArray(samples.size * 2)
-        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples)
-        return bytes
     }
 }
