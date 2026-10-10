@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings-driven theme - individual screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #E8A33D;
+    --accent-soft: rgba(232,163,61,0.18);
+    --bg: #0A0D12;
+    --panel: rgba(255,255,255,0.05);
+    --panel-border: rgba(255,255,255,0.10);
+    --text: #F2F4F7;
+    --muted: #8993A3;
+    --track-off: #2A303B;
+  }
+  body.light {
+    --bg: #EEF2F6;
+    --panel: #FFFFFF;
+    --panel-border: rgba(0,0,0,0.08);
+    --text: #171A1F;
+    --muted: #6B7684;
+    --track-off: #D6DCE3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #14161A;
+    color: #F2F4F7;
+    padding: 40px 24px 100px;
+    transition: background 0.2s;
+  }
+  .page-head { max-width: 380px; margin: 0 auto 32px; }
+  .page-head h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+  .page-head p { font-size: 13px; color: #9098A5; line-height: 1.6; margin: 0; }
+
+  .screen-block { max-width: 380px; margin: 0 auto 48px; }
+  .screen-label { font-size: 13px; font-weight: 700; color: #9098A5; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .phone {
+    border-radius: 24px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ---------------- SETTINGS SCREEN ---------------- */
+  .settings-header { padding: 20px 20px 8px; font-size: 20px; font-weight: 700; }
+  .section-title { padding: 20px 20px 8px; font-size: 13px; font-weight: 700; color: var(--accent); }
+  .row {
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .row .label { font-size: 15px; font-weight: 500; }
+  .row .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .chip-row { display: flex; gap: 8px; padding: 4px 20px 16px; }
+  .theme-chip {
+    font-size: 12px; padding: 7px 14px; border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    color: var(--text); cursor: pointer;
+  }
+  .theme-chip.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .swatch-row { display: flex; gap: 12px; padding: 6px 20px 20px; }
+  .swatch {
+    width: 32px; height: 32px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .swatch.selected { border-color: var(--text); }
+  .swatch .check { color: white; font-size: 14px; font-weight: 700; opacity: 0; }
+  .swatch.selected .check { opacity: 1; }
+
+  .switch {
+    width: 42px; height: 24px; border-radius: 999px;
+    background: var(--track-off); position: relative; cursor: pointer;
+  }
+  .switch.on { background: var(--accent); }
+  .switch .knob {
+    width: 18px; height: 18px; border-radius: 50%; background: white;
+    position: absolute; top: 3px; left: 3px; transition: left 0.15s;
+  }
+  .switch.on .knob { left: 21px; }
+
+  /* ---------------- GAUGE SCREEN ---------------- */
+  .gauge-screen { display: flex; flex-direction: column; align-items: center; padding: 30px 0 20px; }
+  .stat-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 16px 16px; }
+  .stat-tile { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px; text-align: center; }
+  .stat-tile .val { font-size: 17px; font-weight: 800; }
+  .stat-tile .lbl { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  /* ---------------- CHECKLIST SCREEN ---------------- */
+  .checklist-head { padding: 18px 20px 6px; font-size: 18px; font-weight: 700; }
+  .check-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 20px; border-bottom: 1px solid var(--panel-border);
+    font-size: 14px;
+  }
+  .check-box {
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+    border: 2px solid var(--track-off);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: white;
+  }
+  .check-box.checked { background: var(--accent); border-color: var(--accent); }
+  .start-btn {
+    margin: 18px 20px; padding: 15px; text-align: center;
+    font-weight: 700; font-size: 14px; border-radius: 10px;
+    background: var(--accent); color: #14161A;
+  }
+</style>
+</head>
+<body>
+
+  <div class="page-head">
+    <h1>Settings-driven theme</h1>
+    <p>One screen at a time, full size. Change theme and accent color in Settings below - the gauge and checklist screens further down update live, since they all read the same theme, not hardcoded colors.</p>
+  </div>
+
+  <!-- SCREEN 1: SETTINGS -->
+  <div class="screen-block">
+    <div class="screen-label">Settings</div>
+    <div class="phone">
+      <div class="settings-header">Settings</div>
+
+      <div class="section-title">Appearance</div>
+      <div class="chip-row">
+        <div class="theme-chip" data-theme="auto">Auto</div>
+        <div class="theme-chip" data-theme="light">Light</div>
+        <div class="theme-chip selected" data-theme="dark">Dark</div>
+      </div>
+      <div class="row" style="border-bottom:none;">
+        <div>
+          <div class="label">Accent color</div>
+          <div class="sub">Used across gauges, buttons, and highlights</div>
+        </div>
+      </div>
+      <div class="swatch-row">
+        <div class="swatch selected" data-accent="#E8A33D" data-soft="rgba(232,163,61,0.18)" style="background:#E8A33D"><span class="check">✓</span></div>
+        <div class="swatch" data-accent="#0091FF" data-soft="rgba(0,145,255,0.18)" style="background:#0091FF"><span class="check">✓</span></div>
+        <div class="swatch" data-accent="#1D9E75" data-soft="rgba(29,158,117,0.18)" style="background:#1D9E75"><span class="check">✓</span></div>
+        <div class="swatch" data-accent="#C4453F" data-soft="rgba(196,69,63,0.18)" style="background:#C4453F"><span class="check">✓</span></div>
+        <div class="swatch" data-accent="#7C5CFC" data-soft="rgba(124,92,252,0.18)" style="background:#7C5CFC"><span class="check">✓</span></div>
+      </div>
+
+      <div class="section-title">Ride preferences</div>
+      <div class="row">
+        <div>
+          <div class="label">Glove mode</div>
+          <div class="sub">Bigger buttons for riding gloves</div>
+        </div>
+        <div class="switch on" id="glove-switch"><div class="knob"></div></div>
+      </div>
+      <div class="row">
+        <div class="label">Units</div>
+        <div class="sub" style="margin-top:0;">km/h</div>
+      </div>
+
+      <div class="section-title">Intercom</div>
+      <div class="row">
+        <div>
+          <div class="label">Open mic by default</div>
+          <div class="sub">Unmuted automatically when joining a ride</div>
+        </div>
+        <div class="switch" id="openmic-switch"><div class="knob"></div></div>
+      </div>
+      <div class="row" style="border-bottom:none;">
+        <div>
+          <div class="label">Auto-reconnect</div>
+          <div class="sub">Rejoin automatically when back in range</div>
+        </div>
+        <div class="switch on" id="reconnect-switch"><div class="knob"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: GAUGE -->
+  <div class="screen-block">
+    <div class="screen-label">Speed-only mode</div>
+    <div class="phone gauge-screen">
+      <svg viewBox="0 0 300 300" width="260" height="260">
+        <defs>
+          <radialGradient id="faceGrad" cx="50%" cy="40%" r="70%">
+            <stop offset="0%" stop-color="#22262E"/>
+            <stop offset="100%" stop-color="#14161A"/>
+          </radialGradient>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <circle cx="150" cy="150" r="142" fill="none" stroke="#33383F" stroke-width="2"/>
+        <circle cx="150" cy="150" r="136" fill="none" stroke="#1A1D22" stroke-width="6"/>
+        <circle cx="150" cy="150" r="130" fill="url(#faceGrad)"/>
+        <circle cx="150" cy="150" r="122" fill="none" stroke="#262B33" stroke-width="1"/>
+
+        <path d="M 61.6 238.4 A 115 115 0 0 1 238.4 238.4" stroke="#262B33" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path d="M 205.5 90.3 A 115 115 0 0 1 238.4 238.4" stroke="#C4453F" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.55"/>
+        <path d="M 61.6 238.4 A 115 115 0 0 1 192.75 59.6" style="stroke:var(--accent)" stroke-width="6" fill="none" stroke-linecap="round" filter="url(#glow)"/>
+
+        <g stroke="#5A6270" stroke-width="2.5" stroke-linecap="round">
+          <line x1="61.6" y1="238.4" x2="75.7" y2="224.3"/>
+          <line x1="34.5" y1="102.2" x2="53.0" y2="109.8"/>
+          <line x1="150" y1="25" x2="150" y2="45"/>
+          <line x1="265.5" y1="102.2" x2="247.0" y2="109.8"/>
+          <line x1="238.4" y1="238.4" x2="224.3" y2="224.3"/>
+        </g>
+        <g stroke="#3A4048" stroke-width="1.5">
+          <line x1="43.5" y1="170" x2="58" y2="163"/>
+          <line x1="40" y1="135" x2="55.5" y2="132"/>
+          <line x1="98" y1="55" x2="106" y2="70"/>
+          <line x1="202" y1="55" x2="194" y2="70"/>
+          <line x1="260" y1="135" x2="244.5" y2="132"/>
+          <line x1="256.5" y1="170" x2="242" y2="163"/>
+        </g>
+
+        <g fill="#767E8C" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">
+          <text x="52" y="255">0</text>
+          <text x="18" y="105">40</text>
+          <text x="150" y="18">80</text>
+          <text x="282" y="105">120</text>
+          <text x="248" y="255">160</text>
+        </g>
+
+        <path d="M 143 163 L 148.3 152.5 L 192.75 59.6 L 151.7 153.6 Z" style="fill:var(--accent)" filter="url(#glow)"/>
+        <circle cx="150" cy="150" r="15" fill="#1A1D22" style="stroke:var(--accent)" stroke-width="2"/>
+        <circle cx="150" cy="150" r="6" style="fill:var(--accent)"/>
+
+        <rect x="108" y="188" width="84" height="46" rx="10" fill="rgba(10,13,18,0.7)" style="stroke:var(--accent)" stroke-width="1"/>
+        <text x="150" y="212" fill="#F2F4F7" font-size="22" font-weight="800" font-family="Inter" text-anchor="middle">95</text>
+        <text x="150" y="227" fill="#8993A3" font-size="9" font-family="Inter" text-anchor="middle" letter-spacing="1">KM/H</text>
+      </svg>
+
+      <div class="stat-tiles">
+        <div class="stat-tile"><div class="val">24:10</div><div class="lbl">Duration</div></div>
+        <div class="stat-tile"><div class="val">108</div><div class="lbl">Top speed</div></div>
+        <div class="stat-tile"><div class="val">31.4</div><div class="lbl">Distance km</div></div>
+        <div class="stat-tile"><div class="val">64</div><div class="lbl">Avg speed</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: CHECKLIST -->
+  <div class="screen-block">
+    <div class="screen-label">Pre-ride checklist</div>
+    <div class="phone">
+      <div class="checklist-head">Pre-ride checklist</div>
+      <div class="check-item"><div class="check-box checked">✓</div>Helmet strapped on</div>
+      <div class="check-item"><div class="check-box checked">✓</div>Gloves and jacket on</div>
+      <div class="check-item"><div class="check-box checked">✓</div>Chain tension and lube checked</div>
+      <div class="check-item"><div class="check-box">&nbsp;</div>Headlight, taillight, signals working</div>
+      <div class="check-item"><div class="check-box">&nbsp;</div>Reflective gear visible</div>
+      <div class="check-item"><div class="check-box">&nbsp;</div>Route and fuel stops planned</div>
+      <div class="start-btn">Start ride</div>
+    </div>
+  </div>
+
+<script>
+  const root = document.documentElement;
+
+  document.querySelectorAll('.theme-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.theme-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      const mode = chip.dataset.theme;
+      if (mode === 'light') {
+        document.body.classList.add('light');
+      } else {
+        document.body.classList.remove('light');
+      }
+    });
+  });
+
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+      root.style.setProperty('--accent', sw.dataset.accent);
+      root.style.setProperty('--accent-soft', sw.dataset.soft);
+    });
+  });
+
+  ['glove-switch', 'openmic-switch', 'reconnect-switch'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => el.classList.toggle('on'));
+  });
+</script>
+
+</body>
+</html>

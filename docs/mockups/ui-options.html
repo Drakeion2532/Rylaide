@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rider Intercom - UI direction options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@500;600&family=Archivo+Black&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page-bg: #F6F5F2;
+    --page-text: #1A1A18;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--page-bg);
+    color: var(--page-text);
+    padding: 48px 24px 80px;
+  }
+  .page-head { max-width: 1100px; margin: 0 auto 40px; }
+  .page-head h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .page-head p {
+    font-size: 15px;
+    color: #6B6A64;
+    margin: 0;
+    max-width: 640px;
+    line-height: 1.6;
+  }
+  .gallery {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+  @media (max-width: 900px) {
+    .gallery { grid-template-columns: 1fr; max-width: 380px; }
+  }
+  .col-label {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .col-label .name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .col-label .desc {
+    font-size: 12px;
+    color: #8A8980;
+    line-height: 1.5;
+  }
+  .phone {
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto 20px;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.10);
+  }
+
+  /* ---------- Style A: Clean light ---------- */
+  .style-a .phone { background: #FFFFFF; color: #171715; font-family: 'Inter', sans-serif; }
+  .style-a .top { padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .style-a .title { font-size: 15px; font-weight: 600; }
+  .style-a .sub { font-size: 12px; color: #8A8980; }
+  .style-a .badge { background: #DDF3E4; color: #0F6E56; font-size: 11px; padding: 3px 10px; border-radius: 999px; }
+  .style-a .card { border: 1px solid #E5E4DF; border-radius: 12px; padding: 16px; margin: 0 16px 12px; display: flex; align-items: center; gap: 12px; }
+  .style-a .icon-circle { width: 38px; height: 38px; border-radius: 50%; background: #F1F0EB; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .style-a .card-title { font-size: 14px; font-weight: 500; }
+  .style-a .card-sub { font-size: 12px; color: #8A8980; }
+  .style-a .map { height: 160px; background: #EFEEE9; display: flex; align-items: center; justify-content: center; color: #B0AFA6; font-size: 13px; }
+  .style-a .riders { display: flex; gap: 8px; padding: 12px 16px; }
+  .style-a .avatar { width: 34px; height: 34px; border-radius: 50%; background: #F1F0EB; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  .style-a .controls { display: flex; align-items: center; justify-content: center; gap: 26px; padding: 18px 0 10px; }
+  .style-a .mic { width: 74px; height: 74px; border-radius: 50%; background: #F1F0EB; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .style-a .sos { width: 38px; height: 38px; border-radius: 50%; background: #FBE3E3; color: #B3261E; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+  .style-a .hint { text-align: center; font-size: 11px; color: #8A8980; padding-bottom: 16px; }
+
+  /* ---------- Style B: Night rider ---------- */
+  .style-b .phone { background: #17140F; color: #F2EEE4; font-family: 'Oswald', sans-serif; }
+  .style-b .top { padding: 18px 16px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2C2820; }
+  .style-b .title { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  .style-b .sub { font-size: 11px; color: #8C8478; font-family: 'Inter', sans-serif; }
+  .style-b .badge { background: #3A2C14; color: #E8A33D; font-size: 11px; padding: 3px 10px; border-radius: 3px; font-family: 'Inter', sans-serif; }
+  .style-b .card { border: 1px solid #2C2820; border-radius: 4px; padding: 16px; margin: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .style-b .icon-circle { width: 38px; height: 38px; border-radius: 4px; background: #241F17; border: 1px solid #E8A33D; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; color: #E8A33D; }
+  .style-b .card-title { font-size: 14px; font-weight: 500; font-family: 'Inter', sans-serif; }
+  .style-b .card-sub { font-size: 11px; color: #8C8478; font-family: 'Inter', sans-serif; }
+  .style-b .map { height: 160px; background: #1F1B14; display: flex; align-items: center; justify-content: center; color: #5C564A; font-size: 12px; font-family: 'Inter', sans-serif; }
+  .style-b .riders { display: flex; gap: 8px; padding: 14px 16px; }
+  .style-b .avatar { width: 34px; height: 34px; border-radius: 4px; background: #241F17; border: 1px solid #3A342A; display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: 'Inter', sans-serif; }
+  .style-b .avatar.talking { border-color: #E8A33D; color: #E8A33D; }
+  .style-b .controls { display: flex; align-items: center; justify-content: center; gap: 26px; padding: 20px 0 10px; }
+  .style-b .mic { width: 76px; height: 76px; border-radius: 50%; background: #241F17; border: 2px solid #E8A33D; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #E8A33D; }
+  .style-b .sos { width: 38px; height: 38px; border-radius: 4px; background: #2E1414; border: 1px solid #C4453F; color: #E88883; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; font-family: 'Inter', sans-serif; }
+  .style-b .hint { text-align: center; font-size: 11px; color: #6B6458; padding-bottom: 18px; font-family: 'Inter', sans-serif; }
+
+  /* ---------- Style C: High-vis glove mode ---------- */
+  .style-c .phone { background: #FFFFFF; color: #111; font-family: 'Inter', sans-serif; border: 3px solid #111; }
+  .style-c .top { padding: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #111; }
+  .style-c .title { font-family: 'Archivo Black', sans-serif; font-size: 15px; }
+  .style-c .sub { font-size: 12px; color: #444; }
+  .style-c .badge { background: #F2C230; color: #111; font-size: 11px; font-weight: 700; padding: 4px 10px; border: 2px solid #111; }
+  .style-c .card { border: 3px solid #111; padding: 16px; margin: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .style-c .icon-circle { width: 42px; height: 42px; background: #F2C230; border: 2px solid #111; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .style-c .card-title { font-family: 'Archivo Black', sans-serif; font-size: 13px; }
+  .style-c .card-sub { font-size: 12px; color: #444; }
+  .style-c .map { height: 160px; background: repeating-linear-gradient(45deg, #EDEDED, #EDEDED 10px, #F5F5F5 10px, #F5F5F5 20px); display: flex; align-items: center; justify-content: center; color: #666; font-size: 13px; border-top: 3px solid #111; border-bottom: 3px solid #111; }
+  .style-c .riders { display: flex; gap: 10px; padding: 14px 16px; }
+  .style-c .avatar { width: 40px; height: 40px; background: #FFF; border: 2px solid #111; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+  .style-c .avatar.talking { background: #F2C230; }
+  .style-c .controls { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 20px 0 12px; }
+  .style-c .mic { width: 86px; height: 86px; border-radius: 50%; background: #F2C230; border: 3px solid #111; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .style-c .sos { width: 48px; height: 48px; background: #111; color: #F2C230; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .style-c .hint { text-align: center; font-size: 12px; font-weight: 600; padding-bottom: 16px; }
+</style>
+</head>
+<body>
+
+  <div class="page-head">
+    <h1>Rider Intercom - three UI directions</h1>
+    <p>Same two screens (start/join and in-ride), rendered three different ways. Scroll through each column, pick the one that feels right, or mix pieces from each - none of these are locked in yet.</p>
+  </div>
+
+  <div class="gallery">
+
+    <!-- STYLE A -->
+    <div class="col style-a">
+      <div class="col-label">
+        <div class="name">A - Clean light</div>
+        <div class="desc">What you've already seen. Neutral, minimal, easy on the eyes.</div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">Start riding</div></div>
+        </div>
+        <div class="card"><div class="icon-circle">+</div><div><div class="card-title">Create a group</div><div class="card-sub">Start a ride and invite others</div></div></div>
+        <div class="card"><div class="icon-circle">&#9679;&#9679;</div><div><div class="card-title">Join a group</div><div class="card-sub">Enter a code or find nearby riders</div></div></div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">Sunday ride</div><div class="sub">5 riders connected</div></div>
+          <div class="badge">Internet</div>
+        </div>
+        <div class="map">Map goes here</div>
+        <div class="riders">
+          <div class="avatar">MK</div><div class="avatar">AS</div><div class="avatar">RP</div><div class="avatar">JD</div>
+        </div>
+        <div class="controls">
+          <div class="mic">&#127908;</div>
+          <div class="sos">SOS</div>
+        </div>
+        <div class="hint">Tap to unmute</div>
+      </div>
+    </div>
+
+    <!-- STYLE B -->
+    <div class="col style-b">
+      <div class="col-label">
+        <div class="name">B - Night rider</div>
+        <div class="desc">Dark, high-contrast amber accents. Built for readability at night or in bright sun glare.</div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">Start riding</div></div>
+        </div>
+        <div class="card"><div class="icon-circle">+</div><div><div class="card-title">Create a group</div><div class="card-sub">Start a ride and invite others</div></div></div>
+        <div class="card"><div class="icon-circle">&#9679;&#9679;</div><div><div class="card-title">Join a group</div><div class="card-sub">Enter a code or find nearby riders</div></div></div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">Sunday ride</div><div class="sub">5 riders connected</div></div>
+          <div class="badge">Internet</div>
+        </div>
+        <div class="map">Map goes here</div>
+        <div class="riders">
+          <div class="avatar talking">MK</div><div class="avatar">AS</div><div class="avatar">RP</div><div class="avatar">JD</div>
+        </div>
+        <div class="controls">
+          <div class="mic">&#127908;</div>
+          <div class="sos">SOS</div>
+        </div>
+        <div class="hint">Tap to unmute</div>
+      </div>
+    </div>
+
+    <!-- STYLE C -->
+    <div class="col style-c">
+      <div class="col-label">
+        <div class="name">C - High-vis glove mode</div>
+        <div class="desc">Thick borders, oversized targets, safety-yellow accents. Built for gloved thumbs and quick glances.</div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">START RIDING</div></div>
+        </div>
+        <div class="card"><div class="icon-circle">+</div><div><div class="card-title">CREATE A GROUP</div><div class="card-sub">Start a ride and invite others</div></div></div>
+        <div class="card"><div class="icon-circle">&#9679;&#9679;</div><div><div class="card-title">JOIN A GROUP</div><div class="card-sub">Enter a code or find nearby riders</div></div></div>
+      </div>
+
+      <div class="phone">
+        <div class="top">
+          <div><div class="title">SUNDAY RIDE</div><div class="sub">5 riders connected</div></div>
+          <div class="badge">NET</div>
+        </div>
+        <div class="map">Map goes here</div>
+        <div class="riders">
+          <div class="avatar talking">MK</div><div class="avatar">AS</div><div class="avatar">RP</div><div class="avatar">JD</div>
+        </div>
+        <div class="controls">
+          <div class="mic">&#127908;</div>
+          <div class="sos">SOS</div>
+        </div>
+        <div class="hint">TAP TO UNMUTE</div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

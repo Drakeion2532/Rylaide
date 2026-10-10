@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blip integration - screen mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #0091FF;
+    --redline: #E2453F;
+    --success: #1DAA5C;
+    --dark-bg: #0A0D12;
+    --dark-panel: rgba(23,28,36,0.85);
+    --dark-text: #F2F4F7;
+    --dark-muted: #8993A3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #14161A;
+    color: var(--dark-text);
+    padding: 48px 24px 80px;
+  }
+  .page-head { max-width: 1200px; margin: 0 auto 40px; }
+  .page-head h1 { font-size: 26px; font-weight: 700; margin: 0 0 8px; }
+  .page-head p { font-size: 14px; color: #9098A5; max-width: 620px; line-height: 1.6; margin: 0; }
+  .gallery {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 1100px) {
+    .gallery { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .gallery { grid-template-columns: 1fr; }
+  }
+  .col-label { text-align: center; margin-bottom: 14px; }
+  .col-label .name { font-size: 14px; font-weight: 700; }
+  .col-label .desc { font-size: 11px; color: #767E8C; margin-top: 3px; line-height: 1.5; }
+  .phone {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+    border-radius: 24px;
+    overflow: hidden;
+    background: var(--dark-bg);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    min-height: 520px;
+    position: relative;
+  }
+  .glass {
+    background: var(--dark-panel);
+    border: 1px solid rgba(0,145,255,0.35);
+    border-radius: 12px;
+  }
+
+  /* ---- Screen 1: Map / navigation ---- */
+  .nav-banner { margin: 14px; padding: 14px; }
+  .nav-banner .instruction { font-size: 15px; font-weight: 700; }
+  .nav-banner .distance { font-size: 12px; color: var(--dark-muted); margin-top: 2px; }
+  .map-area {
+    height: 300px;
+    margin: 0 14px;
+    border-radius: 12px;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 28px),
+      #10141B;
+    position: relative;
+    overflow: hidden;
+  }
+  .map-area svg { position: absolute; top: 0; left: 0; }
+  .speed-widget {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .speed-widget .num { font-size: 16px; font-weight: 800; line-height: 1; }
+  .speed-widget .unit { font-size: 8px; color: var(--dark-muted); }
+  .dest-info { margin: 14px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .dest-info .eta { font-size: 13px; font-weight: 600; }
+  .dest-info .dist { font-size: 11px; color: var(--dark-muted); }
+
+  /* ---- Screen 2: Speed gauge ---- */
+  .gauge-screen { display: flex; flex-direction: column; align-items: center; padding-top: 30px; }
+  .stat-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 24px 14px 0; width: calc(100% - 28px); }
+  .stat-tile { padding: 12px; text-align: center; }
+  .stat-tile .val { font-size: 18px; font-weight: 800; }
+  .stat-tile .lbl { font-size: 9px; color: var(--dark-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  /* ---- Screen 3: Checklist ---- */
+  .checklist-head { padding: 16px 16px 8px; }
+  .checklist-head h2 { font-size: 17px; font-weight: 700; margin: 0 0 12px; }
+  .toggle-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .chip { font-size: 10px; padding: 5px 10px; border-radius: 6px; background: #1B2028; border: 1px solid #2A303B; color: #9098A5; }
+  .chip.active { background: rgba(0,145,255,0.18); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .checklist-items { padding: 4px 16px; }
+  .check-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #1D2129; font-size: 13px; }
+  .check-box { width: 20px; height: 20px; border-radius: 5px; border: 2px solid var(--success); background: var(--success); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .check-box.unchecked { background: transparent; border-color: #3A4150; }
+  .start-btn { margin: 16px; padding: 14px; text-align: center; font-weight: 700; font-size: 14px; background: var(--success); color: #06210F; border-radius: 10px; }
+
+  /* ---- Screen 4: Fuel log ---- */
+  .fuel-head { padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .fuel-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
+  .add-btn { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: #001A33; }
+  .mileage-panel { margin: 0 16px 14px; padding: 14px; }
+  .mileage-panel .big { font-size: 22px; font-weight: 800; color: var(--success); }
+  .mileage-panel .trend { font-size: 11px; color: var(--success); margin-top: 2px; }
+  .fuel-entry { margin: 0 16px 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .fuel-entry .date { font-size: 12px; font-weight: 600; }
+  .fuel-entry .detail { font-size: 10px; color: var(--dark-muted); margin-top: 2px; }
+  .fuel-entry .amount { font-size: 13px; font-weight: 700; text-align: right; }
+  .fuel-entry .ppl { font-size: 10px; color: var(--dark-muted); text-align: right; }
+</style>
+</head>
+<body>
+
+  <div class="page-head">
+    <h1>Blip integration - four new screens</h1>
+    <p>Built in Blip's own "supercar dash" design language (electric blue accent, dark glass panels, bold numerals) so you can judge the aesthetic on its own terms before deciding whether to unify it with Rider Intercom's current amber/mesh look, or keep them visually distinct.</p>
+  </div>
+
+  <div class="gallery">
+
+    <!-- SCREEN 1: Map / Navigation -->
+    <div class="col">
+      <div class="col-label">
+        <div class="name">Map & navigation</div>
+        <div class="desc">Turn-by-turn banner, live route, tap the corner speed widget to jump to speed-only mode.</div>
+      </div>
+      <div class="phone">
+        <div class="nav-banner glass">
+          <div class="instruction">Turn left onto MG Road</div>
+          <div class="distance">in 240 m</div>
+        </div>
+        <div class="map-area">
+          <svg viewBox="0 0 252 300" width="100%" height="100%">
+            <path d="M 40 280 C 80 220, 60 160, 130 130 S 220 60, 210 20" stroke="#0091FF" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <circle cx="130" cy="130" r="7" fill="#0091FF"/>
+            <circle cx="210" cy="20" r="8" fill="#1DAA5C"/>
+          </svg>
+        </div>
+        <div class="speed-widget glass">
+          <div class="num">62</div>
+          <div class="unit">KM/H</div>
+        </div>
+        <div class="dest-info glass">
+          <div>
+            <div class="eta">Arriving in 12 min</div>
+            <div class="dist">6.4 km remaining</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: Speed gauge -->
+    <div class="col">
+      <div class="col-label">
+        <div class="name">Speed-only mode</div>
+        <div class="desc">Mixed gauge style: analog dial with a digital readout inset in the zone the needle never sweeps.</div>
+      </div>
+      <div class="phone gauge-screen">
+        <svg viewBox="0 0 300 300" width="240" height="240">
+          <circle cx="150" cy="150" r="140" fill="none" stroke="#1B2028" stroke-width="3"/>
+          <circle cx="150" cy="150" r="130" fill="#0F1319"/>
+          <circle cx="150" cy="150" r="122" fill="none" stroke="#1D232D" stroke-width="1"/>
+
+          <path d="M 61.6 238.4 A 125 125 0 0 1 34.5 102.2" stroke="#2A3140" stroke-width="4" fill="none"/>
+          <path d="M 34.5 102.2 A 125 125 0 0 1 150 25" stroke="#2A3140" stroke-width="4" fill="none"/>
+          <path d="M 150 25 A 125 125 0 0 1 265.5 102.2" stroke="#2A3140" stroke-width="4" fill="none"/>
+          <path d="M 205 90 A 125 125 0 0 1 238.4 238.4" stroke="#E2453F" stroke-width="4" fill="none" opacity="0.7"/>
+
+          <path d="M 61.6 238.4 A 115 115 0 0 1 192.75 59.6" stroke="#0091FF" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.9"/>
+
+          <g stroke="#4A5566" stroke-width="2">
+            <line x1="61.6" y1="238.4" x2="75.7" y2="224.3"/>
+            <line x1="34.5" y1="102.2" x2="53.0" y2="109.8"/>
+            <line x1="150" y1="25" x2="150" y2="45"/>
+            <line x1="265.5" y1="102.2" x2="247.0" y2="109.8"/>
+            <line x1="238.4" y1="238.4" x2="224.3" y2="224.3"/>
+          </g>
+          <g fill="#767E8C" font-size="11" font-family="Inter" text-anchor="middle">
+            <text x="52" y="255">0</text>
+            <text x="18" y="105">40</text>
+            <text x="150" y="18">80</text>
+            <text x="282" y="105">120</text>
+            <text x="248" y="255">160</text>
+          </g>
+
+          <polygon points="141.45,168.08 146.4,148.3 192.75,59.6 153.6,151.7" fill="#0091FF"/>
+          <circle cx="150" cy="150" r="14" fill="#1B2028" stroke="#0091FF" stroke-width="2"/>
+          <circle cx="150" cy="150" r="6" fill="#0091FF"/>
+
+          <rect x="112" y="192" width="76" height="42" rx="8" fill="rgba(10,13,18,0.75)" stroke="#0091FF" stroke-width="1"/>
+          <text x="150" y="216" fill="#F2F4F7" font-size="20" font-weight="800" font-family="Inter" text-anchor="middle">95</text>
+          <text x="150" y="229" fill="#8993A3" font-size="8" font-family="Inter" text-anchor="middle" letter-spacing="1">KM/H</text>
+        </svg>
+
+        <div class="stat-tiles">
+          <div class="stat-tile glass"><div class="val">24:10</div><div class="lbl">Duration</div></div>
+          <div class="stat-tile glass"><div class="val">108</div><div class="lbl">Top speed</div></div>
+          <div class="stat-tile glass"><div class="val">31.4</div><div class="lbl">Distance km</div></div>
+          <div class="stat-tile glass"><div class="val">64</div><div class="lbl">Avg speed</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: Checklist -->
+    <div class="col">
+      <div class="col-label">
+        <div class="name">Pre-ride checklist</div>
+        <div class="desc">One tagged item list, filtered live by vehicle, trip length, and time of day.</div>
+      </div>
+      <div class="phone">
+        <div class="checklist-head">
+          <h2>Pre-ride checklist</h2>
+          <div class="toggle-row">
+            <div class="chip active">Bike</div>
+            <div class="chip">Scooter</div>
+          </div>
+          <div class="toggle-row">
+            <div class="chip">Daily</div>
+            <div class="chip active">Long ride</div>
+            <div class="chip active">Night</div>
+          </div>
+        </div>
+        <div class="checklist-items">
+          <div class="check-item"><div class="check-box">✓</div>Helmet strapped on</div>
+          <div class="check-item"><div class="check-box">✓</div>Gloves and jacket on</div>
+          <div class="check-item"><div class="check-box">✓</div>Chain tension and lube checked</div>
+          <div class="check-item"><div class="check-box unchecked"></div>Headlight, taillight, signals working</div>
+          <div class="check-item"><div class="check-box unchecked"></div>Reflective gear visible</div>
+          <div class="check-item"><div class="check-box unchecked"></div>Route and fuel stops planned</div>
+          <div class="check-item"><div class="check-box unchecked"></div>Someone knows your ETA</div>
+        </div>
+        <div class="start-btn">Start ride</div>
+      </div>
+    </div>
+
+    <!-- SCREEN 4: Fuel log -->
+    <div class="col">
+      <div class="col-label">
+        <div class="name">Fuel log</div>
+        <div class="desc">Fill-to-full mileage tracking, price-per-liter trend, no manual math needed.</div>
+      </div>
+      <div class="phone">
+        <div class="fuel-head">
+          <h2>Fuel log</h2>
+          <div class="add-btn">+</div>
+        </div>
+        <div class="mileage-panel glass">
+          <div class="big">38.2 km/l</div>
+          <div class="trend">↓ 4% price per liter vs last fill</div>
+        </div>
+        <div class="fuel-entry glass">
+          <div><div class="date">Aug 21</div><div class="detail">4.2 L · 12,480 km</div></div>
+          <div><div class="amount">₹420</div><div class="ppl">₹100.00/L</div></div>
+        </div>
+        <div class="fuel-entry glass">
+          <div><div class="date">Aug 12</div><div class="detail">4.0 L · 12,318 km</div></div>
+          <div><div class="amount">₹416</div><div class="ppl">₹104.00/L</div></div>
+        </div>
+        <div class="fuel-entry glass">
+          <div><div class="date">Aug 3</div><div class="detail">3.8 L · 12,160 km</div></div>
+          <div><div class="amount">₹395</div><div class="ppl">₹103.90/L</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
