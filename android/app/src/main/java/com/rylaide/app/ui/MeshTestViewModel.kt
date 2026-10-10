@@ -1,7 +1,10 @@
 package com.rylaide.app.ui
 
 import android.app.Application
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.media.AudioManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -61,6 +64,14 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         mesh.start(groupCode, name)
         running = true
         addLog("Started. Audio route: $audioRoute")
+        fun granted(p: String) =
+            ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
+        addLog(
+            "Build 3 (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+                "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
+                "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
+                "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
+        )
     }
 
     fun stop() {
