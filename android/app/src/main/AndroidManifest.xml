@@ -1,36 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Bluetooth: connect to and route audio through the rider's headset -->
+    <!-- Nearby Connections: phone-to-phone link with no internet. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
 
-    <!-- Required by Nearby Connections for Wi-Fi Direct / Bluetooth peer discovery -->
+    <!-- Needed on Android 12 and older for discovery, and for ride tracking on all versions. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- Keeps the mesh/call connection alive while the phone is in a pocket
-         or tank bag with the screen off, mid-ride -->
+    <!-- Keeps the link and mic alive with the screen off. Not used yet:
+         the Sprint 1 test needs the screen on. Added in the next step. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:label="Rylaide"
-        android:allowBackup="false">
+        android:allowBackup="false"
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
+        <!-- Sprint 1 test screen is the launcher for now. Once the real Home
+             screen is ready, move the LAUNCHER filter back to HomeActivity. -->
         <activity
-            android:name=".ui.HomeActivity"
+            android:name=".ui.MeshTestActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.HomeActivity"
+            android:exported="false" />
 
     </application>
 </manifest>
