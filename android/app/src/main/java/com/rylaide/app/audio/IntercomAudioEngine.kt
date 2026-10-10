@@ -28,6 +28,7 @@ class IntercomAudioEngine(
     companion object {
         const val SAMPLE_RATE = 16000
         const val FRAME_SAMPLES = 320 // 20 ms at 16 kHz
+        private const val PRE_ROLL_FRAMES = 4 // 80 ms of audio before speech starts
     }
 
     /** Open mic: when true, speech is sent to the group. */
@@ -46,6 +47,7 @@ class IntercomAudioEngine(
     private var captureThread: Thread? = null
     private var playbackThread: Thread? = null
     private val encoder = OpusVoiceEncoder()
+    private val highPass = HighPassFilter()
     private var sendSeq = 0
 
     private class PeerStream {
@@ -53,6 +55,10 @@ class IntercomAudioEngine(
         val decoder = OpusVoiceDecoder()
     }
     private val peers = ConcurrentHashMap<String, PeerStream>()
+
+    /** Which built-in phone audio clean-up is switched on, for the test log. */
+    val effectsInfo: String
+        get() = "phone echo canceller=${echoCanceler != null}, phone noise suppressor=${noiseSuppressor != null}"
 
     /** Frames the codec had to make up because a packet never arrived. */
     val concealedFrames: Long get() = peers.values.sumOf { it.jitter.concealed }
@@ -70,6 +76,7 @@ class IntercomAudioEngine(
         vad.reset()
         peers.clear()
         sendSeq = 0
+        highPass.reset()
 
         val minRecord = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -164,6 +171,11 @@ class IntercomAudioEngine(
     private fun captureLoop(rec: AudioRecord) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         val buffer = ShortArray(FRAME_SAMPLES)
+        // The speech check only notices a word after it has started, so the
+        // first syllable would be cut off. Keep the last few quiet frames and
+        // send them first when speech begins.
+        val preRoll = java.util.ArrayDeque<ShortArray>()
+        var speaking = false
         rec.startRecording()
         while (running) {
             var read = 0
@@ -173,18 +185,38 @@ class IntercomAudioEngine(
                 read += n
             }
             if (!running) return
-            // Always read so the recorder never backs up, but only send when
-            // the mic is open and the chunk looks like speech.
-            if (micOpen && vad.isSpeech(buffer)) {
-                val opus = encoder.encode(buffer) ?: continue
-                val packet = ByteArray(opus.size + 2)
-                packet[0] = (sendSeq shr 8).toByte()
-                packet[1] = sendSeq.toByte()
-                sendSeq = (sendSeq + 1) and 0xFFFF
-                System.arraycopy(opus, 0, packet, 2, opus.size)
-                onMicPacket(packet)
+            // Always read so the recorder never backs up. Remove wind rumble,
+            // then only send when the mic is open and the chunk looks like speech.
+            highPass.process(buffer)
+            if (!micOpen) {
+                speaking = false
+                preRoll.clear()
+                vad.isSpeech(buffer) // keeps the on-screen level meter live
+                continue
+            }
+            if (vad.isSpeech(buffer)) {
+                if (!speaking) {
+                    speaking = true
+                    for (old in preRoll) sendFrame(old)
+                    preRoll.clear()
+                }
+                sendFrame(buffer)
+            } else {
+                speaking = false
+                preRoll.addLast(buffer.copyOf())
+                while (preRoll.size > PRE_ROLL_FRAMES) preRoll.removeFirst()
             }
         }
+    }
+
+    private fun sendFrame(pcm: ShortArray) {
+        val opus = encoder.encode(pcm) ?: return
+        val packet = ByteArray(opus.size + 2)
+        packet[0] = (sendSeq shr 8).toByte()
+        packet[1] = sendSeq.toByte()
+        sendSeq = (sendSeq + 1) and 0xFFFF
+        System.arraycopy(opus, 0, packet, 2, opus.size)
+        onMicPacket(packet)
     }
 
     /**
