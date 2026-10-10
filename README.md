@@ -54,16 +54,31 @@ docs/          Product brief, technical notes and design mockups
 
 ## Build progress
 
+The full plan, with models, free-tier limits, store checklist and risks, is in
+[`docs/build-plan.md`](docs/build-plan.md).
+
 | Step | What | State |
 |---|---|---|
 | 0 | Project scaffold, theme, Home and in-ride screens | Done (placeholder UI) |
 | 1 | Offline intercom: two phones talk with no internet | Code written, not yet tested on phones |
-| 2 | Compress voice with Opus and mix several riders | Planned |
-| 3 | Background service so it works with the screen off | Planned |
-| 4 | Real Home, onboarding and sign-in screens from the Figma design | Planned |
-| 5 | Groups, maps and navigation | Planned |
-| 6 | Online fallback, chat, sync | Planned |
-| 7 | Closed testing and Play Store release | Planned |
+| 2 | Better voice: Opus, mixing several riders | Planned |
+| 3 | Background ride service, headset routing, noise test | Planned |
+| 4 | Foundation: API 36, Figma design tokens, themes, Glove Mode | Planned |
+| 5 | Accounts and onboarding | Planned |
+| 6 | Garage, fuel log, pre-ride checklist | Planned |
+| 7 | Maps and solo rides | Planned |
+| 8 | Navigation | Planned |
+| 9 | Groups | Planned |
+| 10 | Online voice fallback | Planned |
+| 11 | Safety and SOS | Planned |
+| 12 | Voice assistant | Planned |
+| 13 | Settings and languages | Planned |
+| 14 | Hardening, security, privacy | Planned |
+| 15 | Testing with real riders | Planned |
+| 16 | Closed test and Play Store release | Planned |
+
+Every push to `main` runs an automatic Android build (see
+`.github/workflows/android-build.yml`), so compile errors show up straight away.
 
 ## Run Step 1 yourself
 
