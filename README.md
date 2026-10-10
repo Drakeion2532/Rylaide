@@ -8,7 +8,7 @@ with **no internet** when riders are close together. Around that intercom sit th
 things a rider actually needs: navigation, trip tracking, a pre-ride checklist,
 a fuel log, group rides and safety tools.
 
-> **Status: early development (Step 1).** The design is complete in Figma.
+> **Status: early development (Step 2).** The design is complete in Figma.
 > The app is being built step by step, starting with the offline intercom.
 > Nothing here is ready to install or ride with yet.
 
@@ -60,8 +60,8 @@ The full plan, with models, free-tier limits, store checklist and risks, is in
 | Step | What | State |
 |---|---|---|
 | 0 | Project scaffold, theme, Home and in-ride screens | Done (placeholder UI) |
-| 1 | Offline intercom: two phones talk with no internet | Code written, not yet tested on phones |
-| 2 | Better voice: Opus, mixing several riders | Planned |
+| 1 | Offline intercom: two phones talk with no internet | Tested on 2 phones: worked past 200 m, voice choppy, slow to connect |
+| 2 | Better voice: Opus, jitter buffer, mixing, faster connection | Code written, builds and unit tests pass, not yet tested on phones |
 | 3 | Background ride service, headset routing, noise test | Planned |
 | 4 | Foundation: API 36, Figma design tokens, themes, Glove Mode | Planned |
 | 5 | Accounts and onboarding | Planned |
