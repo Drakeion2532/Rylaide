@@ -20,11 +20,28 @@ jobs:
         with:
           gradle-version: 8.9
 
-      - name: Run unit tests
-        run: gradle -p android :app:testDebugUnitTest
-
       - name: Build debug APK
-        run: gradle -p android :app:assembleDebug
+        id: assemble
+        run: |
+          set +e
+          gradle -p android :app:assembleDebug --console=plain > assemble.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            msg=$(grep -E "^e: |error:|What went wrong|Could not|FAILED" assemble.log | head -25 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Build failed::${msg}"
+          fi
+          exit $code
+
+      - name: Run unit tests
+        run: |
+          set +e
+          gradle -p android :app:testDebugUnitTest --console=plain > test.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            msg=$(grep -E "^e: |error:|FAILED|Error|Exception|expected|What went wrong|Could not" test.log | head -30 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Tests failed::${msg}"
+          fi
+          exit $code
 
       - uses: actions/upload-artifact@v4
         with:
