@@ -71,9 +71,10 @@ private fun requiredPermissions(): Array<String> {
         list += Manifest.permission.BLUETOOTH_CONNECT
         list += Manifest.permission.BLUETOOTH_SCAN
     }
-    if (Build.VERSION.SDK_INT <= 32) {
-        list += Manifest.permission.ACCESS_FINE_LOCATION
-    }
+    // Nearby Connections reports error 8034 unless COARSE location is granted,
+    // and older Android versions also need FINE. Ask for both on every version.
+    list += Manifest.permission.ACCESS_COARSE_LOCATION
+    list += Manifest.permission.ACCESS_FINE_LOCATION
     if (Build.VERSION.SDK_INT >= 33) {
         list += Manifest.permission.NEARBY_WIFI_DEVICES
     }
