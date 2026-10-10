@@ -1,10 +1,10 @@
 package com.rylaide.app.audio
 
-import org.concentus.OpusApplication
-import org.concentus.OpusDecoder
-import org.concentus.OpusEncoder
-import org.concentus.OpusException
-import org.concentus.OpusSignal
+import io.github.jaredmdobson.concentus.OpusApplication
+import io.github.jaredmdobson.concentus.OpusDecoder
+import io.github.jaredmdobson.concentus.OpusEncoder
+import io.github.jaredmdobson.concentus.OpusException
+import io.github.jaredmdobson.concentus.OpusSignal
 
 /**
  * Opus voice compression (pure Java, from the Concentus library).
