@@ -93,7 +93,7 @@ More detail is in [`android/SPRINT1.md`](android/SPRINT1.md).
 ## Contact and feedback
 
 - Email: Relaide.com@gmail.com
-- Instagram: [@relaid_bikers](https://instagram.com/relaid_bikers)
+- Instagram: [@rylaide_](https://instagram.com/rylaide_)
 
 The project was previously called Relaide, so some older links and addresses
 still use that name.
