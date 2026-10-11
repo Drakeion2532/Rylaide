@@ -79,6 +79,18 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             addLog("Phone noise suppressor: " + if (value) "ON" else "OFF")
         }
 
+    private var noiseReducerState by mutableStateOf(true)
+    /** Rylaide's own wind and background noise reducer. */
+    var noiseReducer: Boolean
+        get() = noiseReducerState
+        set(value) {
+            noiseReducerState = value
+            engine.noiseReducer.enabled = value
+            addLog("Rylaide noise reducer: " + if (value) "ON" else "OFF")
+        }
+    /** True while the reducer thinks it hears wind. */
+    val windDetected: Boolean get() = engine.noiseReducer.windDetected
+
     private var sensitivityState by mutableStateOf(1.0)
     /** Extra mic sensitivity, 1x to 8x. Raise it if you have to hold the mic close to talk. */
     var micSensitivity: Double
@@ -157,7 +169,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 10, auto device switching + mic sensitivity (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 11, wind and noise reducer (on) + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

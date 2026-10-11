@@ -213,6 +213,17 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 onCheckedChange = { vm.phoneNoiseSuppressor = it }
             )
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("Rylaide wind and noise reducer" + if (vm.noiseReducer && vm.windDetected) "  (wind heard)" else "")
+            androidx.compose.material3.Switch(
+                checked = vm.noiseReducer,
+                onCheckedChange = { vm.noiseReducer = it }
+            )
+        }
         Text("Mic sensitivity: x${"%.1f".format(vm.micSensitivity)}   (raise it if you must hold the mic close to talk)")
         Slider(
             value = vm.micSensitivity.toFloat(),

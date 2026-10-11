@@ -54,6 +54,8 @@ class IntercomAudioEngine(
     private val encoder = OpusVoiceEncoder()
     private val highPass = HighPassFilter()
     private val autoGain = AutoGain()
+    /** The app's own wind and background noise reducer (see NoiseSuppressor). */
+    val noiseReducer = NoiseSuppressor()
 
     /**
      * Extra mic sensitivity (1.0 = normal). Applied BEFORE the speech check, so a
@@ -108,6 +110,7 @@ class IntercomAudioEngine(
         sendSeq = 0
         highPass.reset()
         autoGain.reset()
+        noiseReducer.reset()
 
         val minRecord = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -241,6 +244,7 @@ class IntercomAudioEngine(
             // Always read so the recorder never backs up. Remove wind rumble,
             // then only send when the mic is open and the chunk looks like speech.
             highPass.process(buffer)
+            noiseReducer.process(buffer)
             applySensitivity(buffer)
             if (!micOpen) {
                 speaking = false
