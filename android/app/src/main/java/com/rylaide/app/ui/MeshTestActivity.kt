@@ -202,6 +202,17 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 onCheckedChange = { vm.autoLevel = it }
             )
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("Phone noise filter (turn OFF if only close talk is heard)")
+            androidx.compose.material3.Switch(
+                checked = vm.phoneNoiseSuppressor,
+                onCheckedChange = { vm.phoneNoiseSuppressor = it }
+            )
+        }
         if (!vm.autoLevel) {
             Slider(
                 value = vm.vadThreshold.toFloat(),

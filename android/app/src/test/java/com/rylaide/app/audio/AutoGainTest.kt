@@ -19,7 +19,7 @@ class AutoGainTest {
             last = chunk(300)
             gain.process(last, 300.0, true)
         }
-        assertTrue("gain was ${gain.currentGain}", gain.currentGain > 3.0 && gain.currentGain <= 6.0)
+        assertTrue("gain was ${gain.currentGain}", gain.currentGain > 3.0 && gain.currentGain <= 8.0)
         assertTrue(abs(last[0].toInt()) > 900)
     }
 

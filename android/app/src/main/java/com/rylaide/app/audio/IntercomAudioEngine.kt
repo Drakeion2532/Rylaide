@@ -69,6 +69,17 @@ class IntercomAudioEngine(
     }
     private val peers = ConcurrentHashMap<String, PeerStream>()
 
+    /**
+     * Turns the phone's own noise suppressor on or off. On some phones it
+     * removes a voice that is not right next to the mic. Returns false if the
+     * phone has none.
+     */
+    fun setPhoneNoiseSuppressor(on: Boolean): Boolean {
+        val ns = noiseSuppressor ?: return false
+        ns.enabled = on
+        return true
+    }
+
     /** Which built-in phone audio clean-up is switched on, for the test log. */
     val effectsInfo: String
         get() = "phone echo canceller=${echoCanceler != null}, phone noise suppressor=${noiseSuppressor != null}"

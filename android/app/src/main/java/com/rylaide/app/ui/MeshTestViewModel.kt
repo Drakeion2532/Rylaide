@@ -69,6 +69,16 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             engine.vad.auto = value
         }
 
+    private var phoneNsState by mutableStateOf(true)
+    /** The phone's own noise suppressor. Turn it off if your voice only comes through close to the mic. */
+    var phoneNoiseSuppressor: Boolean
+        get() = phoneNsState
+        set(value) {
+            phoneNsState = value
+            engine.setPhoneNoiseSuppressor(value)
+            addLog("Phone noise suppressor: " + if (value) "ON" else "OFF")
+        }
+
     /** The level above which your voice is sent right now. */
     val gateLevel: Double get() = engine.vad.effectiveThreshold
     val micBoost: Double get() = engine.micBoost
@@ -118,7 +128,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 8, auto level + low delay (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 9, more sensitive mic (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
