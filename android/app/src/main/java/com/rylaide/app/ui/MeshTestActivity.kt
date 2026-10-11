@@ -213,6 +213,13 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 onCheckedChange = { vm.phoneNoiseSuppressor = it }
             )
         }
+        Text("Mic sensitivity: x${"%.1f".format(vm.micSensitivity)}   (raise it if you must hold the mic close to talk)")
+        Slider(
+            value = vm.micSensitivity.toFloat(),
+            onValueChange = { vm.micSensitivity = it.toDouble() },
+            valueRange = 1f..8f,
+            modifier = Modifier.fillMaxWidth()
+        )
         if (!vm.autoLevel) {
             Slider(
                 value = vm.vadThreshold.toFloat(),

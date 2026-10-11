@@ -79,6 +79,15 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             addLog("Phone noise suppressor: " + if (value) "ON" else "OFF")
         }
 
+    private var sensitivityState by mutableStateOf(1.0)
+    /** Extra mic sensitivity, 1x to 8x. Raise it if you have to hold the mic close to talk. */
+    var micSensitivity: Double
+        get() = sensitivityState
+        set(value) {
+            sensitivityState = value
+            engine.micSensitivity = value
+        }
+
     /** The level above which your voice is sent right now. */
     val gateLevel: Double get() = engine.vad.effectiveThreshold
     val micBoost: Double get() = engine.micBoost
@@ -91,24 +100,44 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = onDevicesChanged()
     }
 
-    /** Plug or unplug earphones mid-ride and the app follows. */
+    /**
+     * Earphones, a Bluetooth headset or a USB receiver coming or going: follow it,
+     * without the rider having to stop and start.
+     */
     private fun onDevicesChanged() {
         if (!running) return
         val newRoute = routeManager.detectBestRoute()
-        if (newRoute.name != audioRoute) {
+        val changed = newRoute.name != audioRoute
+        // On Android 12+ this is cheap and also catches a Bluetooth headset that
+        // finishes connecting a moment after it appears.
+        if (changed || android.os.Build.VERSION.SDK_INT >= 31) {
             audioRoute = routeManager.connectBestAvailableRoute().name
-            applyRoute()
+        }
+        applyRoute()
+        if (changed) {
             addLog("Audio route changed to $audioRoute")
             addLog(routeManager.describeDevices())
+            if (audioRoute == "BLUETOOTH_HEADSET") scheduleBluetoothRetry()
         }
     }
 
+    /** Some headsets need a second try before the call link comes up. */
+    private fun scheduleBluetoothRetry() {
+        mainHandler.postDelayed({
+            if (running && audioRoute == "BLUETOOTH_HEADSET" && !routeManager.bluetoothCallReady()) {
+                routeManager.connectBestAvailableRoute()
+                applyRoute()
+                addLog("Bluetooth headset: trying the call link again")
+            }
+        }, 3000)
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private fun applyRoute() {
-        if (audioRoute == "WIRED_HEADSET") {
-            engine.setPreferredDevices(routeManager.wiredInput(), routeManager.wiredOutput())
-        } else {
-            engine.setPreferredDevices(null, null)
-        }
+        val route = runCatching { com.rylaide.app.audio.AudioRoute.valueOf(audioRoute) }.getOrNull() ?: return
+        val (input, output) = routeManager.preferredDevices(route)
+        engine.setPreferredDevices(input, output)
     }
 
     /** Call only after the runtime permissions have been granted. */
@@ -128,7 +157,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 9, more sensitive mic (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 10, auto device switching + mic sensitivity (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -151,10 +180,8 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         mesh.stop()
         val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
-        audioManager.stopBluetoothSco()
-        audioManager.isBluetoothScoOn = false
-        audioManager.isSpeakerphoneOn = false
-        audioManager.mode = AudioManager.MODE_NORMAL
+        mainHandler.removeCallbacksAndMessages(null)
+        routeManager.release()
         running = false
         status = "Stopped"
         addLog("Stopped")

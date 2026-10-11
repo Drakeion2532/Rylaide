@@ -55,6 +55,12 @@ class IntercomAudioEngine(
     private val highPass = HighPassFilter()
     private val autoGain = AutoGain()
 
+    /**
+     * Extra mic sensitivity (1.0 = normal). Applied BEFORE the speech check, so a
+     * voice from further away still opens the gate.
+     */
+    @Volatile var micSensitivity: Double = 1.0
+
     /** How much the app is boosting your voice right now (1.0 = no boost). */
     val micBoost: Double get() = autoGain.currentGain
 
@@ -235,6 +241,7 @@ class IntercomAudioEngine(
             // Always read so the recorder never backs up. Remove wind rumble,
             // then only send when the mic is open and the chunk looks like speech.
             highPass.process(buffer)
+            applySensitivity(buffer)
             if (!micOpen) {
                 speaking = false
                 preRoll.clear()
@@ -254,6 +261,14 @@ class IntercomAudioEngine(
                 preRoll.addLast(buffer.copyOf())
                 while (preRoll.size > PRE_ROLL_FRAMES) preRoll.removeFirst()
             }
+        }
+    }
+
+    private fun applySensitivity(samples: ShortArray) {
+        val g = micSensitivity
+        if (g <= 1.001) return
+        for (i in samples.indices) {
+            samples[i] = (samples[i] * g).toInt().coerceIn(-32768, 32767).toShort()
         }
     }
 

@@ -28,7 +28,7 @@ class VoiceActivityDetector(
     companion object {
         const val MIN_AUTO_THRESHOLD = 60.0    // soft or distant speech in a quiet room still passes
         const val MAX_AUTO_THRESHOLD = 4000.0
-        const val SPEECH_OVER_NOISE = 3.0      // gate opens at 3x the background level
+        const val SPEECH_OVER_NOISE = 2.5      // gate opens at 2.5x the background level
     }
 
     /** True: threshold follows the background noise. False: use [threshold]. */
