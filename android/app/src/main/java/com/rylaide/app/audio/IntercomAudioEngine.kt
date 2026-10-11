@@ -2,6 +2,7 @@ package com.rylaide.app.audio
 
 import android.annotation.SuppressLint
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
@@ -46,6 +47,9 @@ class IntercomAudioEngine(
     private var noiseSuppressor: NoiseSuppressor? = null
     private var captureThread: Thread? = null
     private var playbackThread: Thread? = null
+    @Volatile private var preferredInput: AudioDeviceInfo? = null
+    @Volatile private var preferredOutput: AudioDeviceInfo? = null
+
     private val encoder = OpusVoiceEncoder()
     private val highPass = HighPassFilter()
     private var sendSeq = 0
@@ -119,10 +123,27 @@ class IntercomAudioEngine(
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         track = tr
+        applyPreferredDevices()
         tr.play()
 
         captureThread = Thread({ captureLoop(rec) }, "rylaide-capture").also { it.start() }
         playbackThread = Thread({ playbackLoop(tr) }, "rylaide-playback").also { it.start() }
+    }
+
+    /**
+     * Pins the mic and speaker to specific devices (for example wired earphones)
+     * instead of leaving the choice to the phone. Pass null to let Android choose.
+     * Safe to call while running.
+     */
+    fun setPreferredDevices(input: AudioDeviceInfo?, output: AudioDeviceInfo?) {
+        preferredInput = input
+        preferredOutput = output
+        applyPreferredDevices()
+    }
+
+    private fun applyPreferredDevices() {
+        recorder?.setPreferredDevice(preferredInput)
+        track?.setPreferredDevice(preferredOutput)
     }
 
     fun stop() {

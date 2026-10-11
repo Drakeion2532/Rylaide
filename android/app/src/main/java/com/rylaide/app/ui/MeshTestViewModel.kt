@@ -5,7 +5,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,21 +60,51 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             engine.vad.threshold = value
         }
 
+    private val routeManager by lazy { AudioRouteManager(getApplication<Application>()) }
+
+    private val deviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = onDevicesChanged()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = onDevicesChanged()
+    }
+
+    /** Plug or unplug earphones mid-ride and the app follows. */
+    private fun onDevicesChanged() {
+        if (!running) return
+        val newRoute = routeManager.detectBestRoute()
+        if (newRoute.name != audioRoute) {
+            audioRoute = routeManager.connectBestAvailableRoute().name
+            applyRoute()
+            addLog("Audio route changed to $audioRoute")
+            addLog(routeManager.describeDevices())
+        }
+    }
+
+    private fun applyRoute() {
+        if (audioRoute == "WIRED_HEADSET") {
+            engine.setPreferredDevices(routeManager.wiredInput(), routeManager.wiredOutput())
+        } else {
+            engine.setPreferredDevices(null, null)
+        }
+    }
+
     /** Call only after the runtime permissions have been granted. */
     fun start(groupCode: String, name: String) {
         if (running) return
         val context = getApplication<Application>()
-        audioRoute = AudioRouteManager(context).connectBestAvailableRoute().name
+        audioRoute = routeManager.connectBestAvailableRoute().name
         framesSent.set(0)
         framesReceived.set(0)
         engine.start()
+        applyRoute()
         mesh.start(groupCode, name)
         running = true
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
         addLog("Started. Audio route: $audioRoute")
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 6, Opus + wind filter (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 7, Opus + wind filter + wired fix (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -78,6 +112,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
         val locationOn = androidx.core.location.LocationManagerCompat.isLocationEnabled(locationManager)
         addLog("Audio: ${engine.effectsInfo}")
+        addLog(routeManager.describeDevices())
         addLog("Phone Location switch: " + if (locationOn) "ON" else "OFF - turn it on, Nearby needs it")
         val bluetoothOn = android.bluetooth.BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
         addLog("Bluetooth: " + if (bluetoothOn) "ON" else "OFF - turn it on")
@@ -90,6 +125,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         engine.stop()
         mesh.stop()
         val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.unregisterAudioDeviceCallback(deviceCallback)
         audioManager.stopBluetoothSco()
         audioManager.isBluetoothScoOn = false
         audioManager.isSpeakerphoneOn = false

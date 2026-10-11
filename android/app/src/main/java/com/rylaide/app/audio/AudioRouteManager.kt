@@ -31,15 +31,43 @@ class AudioRouteManager(private val context: Context) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val bluetoothAudioManager = BluetoothAudioManager(context)
 
+    private fun isWired(device: AudioDeviceInfo) =
+        device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            device.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            device.type == AudioDeviceInfo.TYPE_USB_DEVICE // many USB-C earphones report this
+
+    /** The wired earphone output, if one is plugged in. */
+    fun wiredOutput(): AudioDeviceInfo? =
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { isWired(it) }
+
+    /** The wired headset microphone, if the plugged-in accessory has one. */
+    fun wiredInput(): AudioDeviceInfo? =
+        audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { isWired(it) }
+
+    /** Plain-text list of what Android reports, for the test log. */
+    fun describeDevices(): String {
+        fun name(d: AudioDeviceInfo) = when (d.type) {
+            AudioDeviceInfo.TYPE_BUILTIN_MIC -> "phone mic"
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "phone speaker"
+            AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "phone earpiece"
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired headset"
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "wired headphones"
+            AudioDeviceInfo.TYPE_USB_HEADSET -> "USB headset"
+            AudioDeviceInfo.TYPE_USB_DEVICE -> "USB device"
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth call"
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth music"
+            else -> "type ${d.type}"
+        }
+        val ins = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).joinToString { name(it) }
+        val outs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).joinToString { name(it) }
+        return "Audio devices. Inputs: [$ins] Outputs: [$outs]"
+    }
+
     fun detectBestRoute(): AudioRoute {
         val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
 
-        val hasWired = outputs.any { device ->
-            device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                device.type == AudioDeviceInfo.TYPE_USB_HEADSET
-        }
-        if (hasWired) return AudioRoute.WIRED_HEADSET
+        if (wiredOutput() != null) return AudioRoute.WIRED_HEADSET
 
         val hasBluetooth = outputs.any { device ->
             device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
@@ -56,6 +84,7 @@ class AudioRouteManager(private val context: Context) {
             AudioRoute.WIRED_HEADSET -> {
                 // No explicit "connect" step - Android routes to the wired
                 // accessory automatically once we're in communication mode.
+                bluetoothAudioManager.disconnect()
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                 audioManager.isSpeakerphoneOn = false
             }
@@ -63,6 +92,7 @@ class AudioRouteManager(private val context: Context) {
                 bluetoothAudioManager.connectToHeadset()
             }
             AudioRoute.PHONE_SPEAKER -> {
+                bluetoothAudioManager.disconnect()
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                 audioManager.isSpeakerphoneOn = true
             }
