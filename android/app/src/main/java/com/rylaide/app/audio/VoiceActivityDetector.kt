@@ -9,25 +9,48 @@ import kotlin.math.sqrt
  * audio is worth sending. Quiet chunks are dropped, which saves bandwidth and
  * battery and stops the group hearing constant hiss.
  *
- * v1 is a simple loudness (RMS) check with a short "hangover" so the ends of
- * words are not cut off. Be aware of the limit: this measures volume, not
- * whether it is a voice. Loud wind or engine noise can still pass through. A
- * real noise model can replace this later without changing anything else.
+ * AUTO mode (the default): the detector keeps track of the background level
+ * (the "noise floor") and opens the gate when the sound is clearly louder than
+ * that. In a quiet room it opens for soft speech; in steady wind or engine
+ * noise the gate rises by itself. No slider fiddling needed.
  *
- * [threshold] is a guess to be tuned on a real bike. The test screen shows the
- * live level so you can pick a number that works for you.
+ * MANUAL mode: a fixed [threshold], set with the slider on the test screen.
+ *
+ * Limit: this measures volume, not whether it is a voice. A sudden loud gust
+ * can still open the gate. A real noise model can replace this later without
+ * changing anything else.
  */
 class VoiceActivityDetector(
     @Volatile var threshold: Double = 900.0,
     private val hangoverFrames: Int = 15 // 15 x 20 ms = 300 ms
 ) {
 
+    companion object {
+        const val MIN_AUTO_THRESHOLD = 120.0   // soft speech in a quiet room still passes
+        const val MAX_AUTO_THRESHOLD = 4000.0
+        const val SPEECH_OVER_NOISE = 3.0      // gate opens at 3x the background level
+    }
+
+    /** True: threshold follows the background noise. False: use [threshold]. */
+    @Volatile
+    var auto: Boolean = true
+
     private var hangRemaining = 0
+    private var noiseFloor = -1.0
+    private var loudStreak = 0 // consecutive loud chunks; speech has gaps, wind does not
 
     /** Loudness of the most recent chunk (0 - 32767), for showing on screen. */
     @Volatile
     var lastRms: Double = 0.0
         private set
+
+    /** The level the gate is using right now. */
+    val effectiveThreshold: Double
+        get() = if (auto) {
+            (maxOf(noiseFloor, 0.0) * SPEECH_OVER_NOISE).coerceIn(MIN_AUTO_THRESHOLD, MAX_AUTO_THRESHOLD)
+        } else {
+            threshold
+        }
 
     fun isSpeech(audioChunk: ShortArray, length: Int = audioChunk.size): Boolean {
         if (length <= 0) return false
@@ -39,7 +62,11 @@ class VoiceActivityDetector(
         val rms = sqrt(sum / length)
         lastRms = rms
 
-        if (rms >= threshold) {
+        val speech = rms >= effectiveThreshold
+        loudStreak = if (speech) loudStreak + 1 else 0
+        trackNoiseFloor(rms, speech)
+
+        if (speech) {
             hangRemaining = hangoverFrames
             return true
         }
@@ -50,8 +77,30 @@ class VoiceActivityDetector(
         return false
     }
 
+    /**
+     * Learns the background level: it drops quickly when things get quieter and
+     * creeps up slowly when they get louder, so steady wind raises the gate
+     * but a spoken sentence does not.
+     */
+    private fun trackNoiseFloor(rms: Double, speech: Boolean) {
+        if (noiseFloor < 0) {
+            noiseFloor = rms
+            return
+        }
+        noiseFloor = when {
+            rms < noiseFloor -> noiseFloor * 0.9 + rms * 0.1
+            // Loud for 3 s without a break is wind or engine, not a sentence:
+            // learn it as background quickly.
+            speech && loudStreak >= 150 -> noiseFloor + (rms - noiseFloor) * 0.01
+            speech -> noiseFloor + (rms - noiseFloor) * 0.0003
+            else -> noiseFloor + (rms - noiseFloor) * 0.01
+        }
+    }
+
     fun reset() {
         hangRemaining = 0
         lastRms = 0.0
+        noiseFloor = -1.0
+        loudStreak = 0
     }
 }

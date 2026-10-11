@@ -29,6 +29,7 @@ class IntercomAudioEngine(
     companion object {
         const val SAMPLE_RATE = 16000
         const val FRAME_SAMPLES = 320 // 20 ms at 16 kHz
+        private const val PLAYBACK_BUFFER_FRAMES = 3 // 60 ms
         private const val PRE_ROLL_FRAMES = 4 // 80 ms of audio before speech starts
     }
 
@@ -52,6 +53,14 @@ class IntercomAudioEngine(
 
     private val encoder = OpusVoiceEncoder()
     private val highPass = HighPassFilter()
+    private val autoGain = AutoGain()
+
+    /** How much the app is boosting your voice right now (1.0 = no boost). */
+    val micBoost: Double get() = autoGain.currentGain
+
+    /** Length of the phone's playback buffer in milliseconds (part of the delay you hear). */
+    @Volatile var playbackBufferMs: Int = 0
+        private set
     private var sendSeq = 0
 
     private class PeerStream {
@@ -81,6 +90,7 @@ class IntercomAudioEngine(
         peers.clear()
         sendSeq = 0
         highPass.reset()
+        autoGain.reset()
 
         val minRecord = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -121,7 +131,12 @@ class IntercomAudioEngine(
             )
             .setBufferSizeInBytes(maxOf(minTrack, FRAME_SAMPLES * 2 * 2))
             .setTransferMode(AudioTrack.MODE_STREAM)
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .build()
+        // Ask for a small buffer: the playback loop keeps it full, so its size
+        // is delay the rider hears. The phone may refuse to go lower than its minimum.
+        tr.setBufferSizeInFrames(FRAME_SAMPLES * PLAYBACK_BUFFER_FRAMES)
+        playbackBufferMs = tr.bufferSizeInFrames * 1000 / SAMPLE_RATE
         track = tr
         applyPreferredDevices()
         tr.play()
@@ -221,6 +236,7 @@ class IntercomAudioEngine(
                     for (old in preRoll) sendFrame(old)
                     preRoll.clear()
                 }
+                autoGain.process(buffer, vad.lastRms, true)
                 sendFrame(buffer)
             } else {
                 speaking = false

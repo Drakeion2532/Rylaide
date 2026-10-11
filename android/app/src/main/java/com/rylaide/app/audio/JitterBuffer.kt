@@ -15,8 +15,8 @@ import java.util.TreeMap
  * buffer stays empty, it goes idle and prebuffers again at the next word.
  */
 class JitterBuffer(
-    private val prebufferFrames: Int = 4,   // 4 x 20 ms = 80 ms
-    private val maxFrames: Int = 20          // never hold more than 400 ms
+    private val prebufferFrames: Int = 3,   // 3 x 20 ms = 60 ms
+    private val maxFrames: Int = 8           // never hold more than 160 ms, so delay cannot build up
 ) {
 
     sealed class Result {

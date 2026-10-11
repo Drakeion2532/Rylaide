@@ -60,6 +60,20 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             engine.vad.threshold = value
         }
 
+    private var autoLevelState by mutableStateOf(true)
+    /** Automatic mic level: the gate follows the background noise and quiet voices get a boost. */
+    var autoLevel: Boolean
+        get() = autoLevelState
+        set(value) {
+            autoLevelState = value
+            engine.vad.auto = value
+        }
+
+    /** The level above which your voice is sent right now. */
+    val gateLevel: Double get() = engine.vad.effectiveThreshold
+    val micBoost: Double get() = engine.micBoost
+    val playbackBufferMs: Int get() = engine.playbackBufferMs
+
     private val routeManager by lazy { AudioRouteManager(getApplication<Application>()) }
 
     private val deviceCallback = object : AudioDeviceCallback() {
@@ -104,7 +118,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 7, Opus + wind filter + wired fix (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 8, auto level + low delay (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -112,6 +126,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
         val locationOn = androidx.core.location.LocationManagerCompat.isLocationEnabled(locationManager)
         addLog("Audio: ${engine.effectsInfo}")
+        addLog("Playback buffer: ${engine.playbackBufferMs} ms (part of the delay you hear)")
         addLog(routeManager.describeDevices())
         addLog("Phone Location switch: " + if (locationOn) "ON" else "OFF - turn it on, Nearby needs it")
         val bluetoothOn = android.bluetooth.BluetoothAdapter.getDefaultAdapter()?.isEnabled == true

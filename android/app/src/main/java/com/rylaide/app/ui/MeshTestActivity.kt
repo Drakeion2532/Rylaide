@@ -92,6 +92,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var concealed by remember { mutableLongStateOf(0L) }
     var late by remember { mutableLongStateOf(0L) }
     var buffered by remember { mutableStateOf(0) }
+    var gate by remember { mutableStateOf(0.0) }
+    var boost by remember { mutableStateOf(1.0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -114,6 +116,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             concealed = vm.concealedFrames
             late = vm.lateFrames
             buffered = vm.bufferedMs
+            gate = vm.gateLevel
+            boost = vm.micBoost
             delay(500)
         }
     }
@@ -186,12 +190,23 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
         )
         Text("Voice packets sent: $sent   ·   received: $received")
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
-        Text("Mic level: ${level.toInt()}   (speech is sent above ${vm.vadThreshold.toInt()})")
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("Auto mic level")
+            androidx.compose.material3.Switch(
+                checked = vm.autoLevel,
+                onCheckedChange = { vm.autoLevel = it }
+            )
+        }
+        if (!vm.autoLevel) {
             Slider(
                 value = vm.vadThreshold.toFloat(),
                 onValueChange = { vm.vadThreshold = it.toDouble() },
-                valueRange = 200f..4000f,
+                valueRange = 100f..4000f,
                 modifier = Modifier.fillMaxWidth()
             )
         }
