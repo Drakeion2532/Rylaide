@@ -61,7 +61,7 @@ The full plan, with models, free-tier limits, store checklist and risks, is in
 |---|---|---|
 | 0 | Project scaffold, theme, Home and in-ride screens | Done (placeholder UI) |
 | 1 | Offline intercom: two phones talk with no internet | Tested on 2 phones: worked past 200 m, voice choppy, slow to connect |
-| 2 | Better voice: Opus, jitter buffer, mixing, faster connection | Code written, builds and unit tests pass, not yet tested on phones |
+| 2 | Better voice: Opus, jitter buffer, mixing, faster connection | Tested outdoors on phones: connects in about 1 s, no lost packets, wired and Bluetooth switch automatically. Wind and fan noise reducer (build 11) is new and still being tested |
 | 3 | Background ride service, headset routing, noise test | Planned |
 | 4 | Foundation: API 36, Figma design tokens, themes, Glove Mode | Planned |
 | 5 | Accounts and onboarding | Planned |
