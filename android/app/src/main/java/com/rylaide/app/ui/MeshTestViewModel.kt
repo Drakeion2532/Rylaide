@@ -52,6 +52,8 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     val concealedFrames: Long get() = engine.concealedFrames
     val lateFrames: Long get() = engine.lateFrames
     val bufferedMs: Int get() = engine.bufferedMs
+    val linkRttMs: Int get() = mesh.linkRttMs
+    val linkRttWorstMs: Int get() = mesh.linkRttWorstMs
     private var thresholdState by mutableStateOf(engine.vad.threshold)
     var vadThreshold: Double
         get() = thresholdState
@@ -169,7 +171,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 11, wind and noise reducer (on) + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 12, link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

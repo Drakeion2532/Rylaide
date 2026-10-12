@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
+import com.google.android.gms.nearby.connection.BandwidthInfo
 import com.google.android.gms.nearby.connection.ConnectionInfo
 import com.google.android.gms.nearby.connection.ConnectionLifecycleCallback
 import com.google.android.gms.nearby.connection.ConnectionResolution
@@ -56,6 +57,9 @@ class MeshDiscoveryManager(
     companion object {
         private const val SERVICE_ID = "com.rylaide.app.mesh"
         const val TYPE_AUDIO: Byte = 1
+        private const val TYPE_PING: Byte = 2
+        private const val TYPE_PONG: Byte = 3
+        private const val PING_INTERVAL_MS = 2000L
         private const val RETRY_DELAY_MS = 2000L
         // The phone with the larger id waits this long for the other phone to
         // connect first, then requests the connection itself. This avoids the
@@ -88,6 +92,39 @@ class MeshDiscoveryManager(
     // endpointId -> display name shown in the UI
     private val names = ConcurrentHashMap<String, String>()
 
+    /**
+     * Round-trip time to the other phone in milliseconds (average of the last
+     * few checks), or -1 if not measured yet. Half of it is roughly the one-way
+     * delay of the phone-to-phone link, before the headset adds its own.
+     */
+    @Volatile var linkRttMs: Int = -1
+        private set
+    @Volatile var linkRttWorstMs: Int = -1
+        private set
+    private val rttWindow = ArrayDeque<Int>()
+
+    private fun recordRtt(ms: Int) {
+        synchronized(rttWindow) {
+            rttWindow.addLast(ms)
+            while (rttWindow.size > 10) rttWindow.removeFirst()
+            linkRttMs = rttWindow.average().toInt()
+            linkRttWorstMs = rttWindow.maxOrNull() ?: -1
+        }
+    }
+
+    private val pinger = object : Runnable {
+        override fun run() {
+            if (!running) return
+            if (connected.isNotEmpty()) {
+                val m = ByteArray(9)
+                m[0] = TYPE_PING
+                java.nio.ByteBuffer.wrap(m, 1, 8).putLong(System.nanoTime())
+                client.sendPayload(connected.keys.toList(), Payload.fromBytes(m))
+            }
+            mainHandler.postDelayed(this, PING_INTERVAL_MS)
+        }
+    }
+
     private fun localEndpointName() = "$groupCode|$riderId|$displayName"
 
     private fun parse(endpointName: String): Triple<String, String, String>? {
@@ -106,6 +143,10 @@ class MeshDiscoveryManager(
         startAdvertising()
         startDiscovery()
         mainHandler.postDelayed(watchdog, WATCHDOG_MS)
+        mainHandler.postDelayed(pinger, PING_INTERVAL_MS)
+        synchronized(rttWindow) { rttWindow.clear() }
+        linkRttMs = -1
+        linkRttWorstMs = -1
     }
 
     /** Restarts advertising and searching while we have no connections. */
@@ -228,6 +269,11 @@ class MeshDiscoveryManager(
             }
         }
 
+        override fun onBandwidthChanged(endpointId: String, info: BandwidthInfo) {
+            // Shows whether the link moved from slow Bluetooth to faster Wi-Fi.
+            listener.onStatus("Link speed code for ${names[endpointId] ?: endpointId}: ${info.quality} (1 low, 2 medium, 3 high)")
+        }
+
         override fun onDisconnected(endpointId: String) {
             connected.remove(endpointId)
             pending.remove(endpointId)
@@ -246,8 +292,17 @@ class MeshDiscoveryManager(
             if (payload.type != Payload.Type.BYTES) return
             val bytes = payload.asBytes() ?: return
             if (bytes.size < 4) return
-            if (bytes[0] == TYPE_AUDIO) {
-                listener.onAudioFrame(endpointId, bytes.copyOfRange(1, bytes.size))
+            when (bytes[0]) {
+                TYPE_AUDIO -> listener.onAudioFrame(endpointId, bytes.copyOfRange(1, bytes.size))
+                TYPE_PING -> {
+                    val pong = bytes.copyOf()
+                    pong[0] = TYPE_PONG
+                    client.sendPayload(endpointId, Payload.fromBytes(pong))
+                }
+                TYPE_PONG -> if (bytes.size >= 9) {
+                    val sentAt = java.nio.ByteBuffer.wrap(bytes, 1, 8).long
+                    recordRtt(((System.nanoTime() - sentAt) / 1_000_000L).toInt())
+                }
             }
         }
 

@@ -92,6 +92,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var concealed by remember { mutableLongStateOf(0L) }
     var late by remember { mutableLongStateOf(0L) }
     var buffered by remember { mutableStateOf(0) }
+    var rtt by remember { mutableStateOf(-1) }
+    var rttWorst by remember { mutableStateOf(-1) }
     var gate by remember { mutableStateOf(0.0) }
     var boost by remember { mutableStateOf(1.0) }
 
@@ -116,6 +118,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             concealed = vm.concealedFrames
             late = vm.lateFrames
             buffered = vm.bufferedMs
+            rtt = vm.linkRttMs
+            rttWorst = vm.linkRttWorstMs
             gate = vm.gateLevel
             boost = vm.micBoost
             delay(500)
@@ -189,6 +193,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             else "Connected riders: " + vm.peers.joinToString { it.name }
         )
         Text("Voice packets sent: $sent   ·   received: $received")
+        Text(if (rtt < 0) "Link delay: not measured yet" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms")
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
         Row(
