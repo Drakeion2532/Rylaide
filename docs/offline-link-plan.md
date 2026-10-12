@@ -38,7 +38,11 @@ through other riders, and fall back to the internet when there is signal.
    other connections, with a hop limit and duplicate check, so a rider at the
    back reaches the front through the riders between them. Needs an origin id
    in each voice packet and one voice stream per speaker rather than per
-   neighbour. Planned as Build 15.
+   neighbour. **Built in Build 15** (our own design, no Serval code). Voice and
+   "presence" messages carry an origin id, a hop limit of 4 and a sequence
+   number. A phone plays a new message, passes it to its other connections and
+   drops copies it already saw. Each hop adds roughly the single-link delay
+   (about 100 ms one way in Build 13), so four hops is around 400 ms.
 3. **Online fallback** (LiveKit, plan step 10) when riders are too far apart
    but have mobile signal.
 4. **Graceful loss.** When a rider drops out, say so ("Asha lost, rejoining"),
@@ -73,3 +77,25 @@ The wind and noise reducer now has Off, Low, Medium and High. The idea is to
 offer the higher levels as a paid feature later ("Rylaide Plus"). That needs
 Google Play Billing and conflicts with the earlier "nothing is paid" decision,
 so nothing is gated yet and billing is not built. Decide this before Step 16.
+
+## 7. Relay tests
+
+Done on a computer (25 tests, run on every push): message format, duplicate
+and wrap-around handling, and whole-group simulations. Results: voice crosses
+a line of five riders and stops at the hop limit; a ring plays every packet
+exactly once with no loops; a full group of six stays correct with everyone
+talking; a second path beats a single path under 20% packet loss; a rider
+dropping out cuts off only those behind them, and a ring routes around them.
+These prove the logic. They say nothing about the radio.
+
+Still to do on phones (needs 3 phones, or 2 phones plus a friend's):
+
+| Run | Setup | Pass if |
+|---|---|---|
+| R1 | A and B in range of each other, B and C in range, A and C out of range | A hears C and C hears A, "Riders you can hear" shows C as 2 hops on A |
+| R2 | R1, then B walks away | A and C stop hearing each other, and the screen shows it within about 10 s |
+| R3 | All three in range of each other | Nobody hears anyone twice, no echo |
+| R4 | R1 with a Bluetooth headset on B | Voice still passes through B |
+
+Use the best link type from the Build 14 test. The relay needs the group
+mode (the fast 1-to-1 link allows a single connection, so leave it off).
