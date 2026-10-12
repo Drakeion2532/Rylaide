@@ -51,7 +51,7 @@ class MeshDiscoveryManager(
     interface Listener {
         fun onStatus(message: String)
         fun onPeersChanged(peers: List<Peer>)
-        fun onAudioFrame(fromEndpointId: String, packet: ByteArray)
+        fun onAudioFrame(fromRiderKey: String, packet: ByteArray)
     }
 
     data class Peer(val endpointId: String, val name: String)
@@ -72,10 +72,11 @@ class MeshDiscoveryManager(
 
     companion object {
         private const val SERVICE_ID = "com.rylaide.app.mesh"
-        const val TYPE_AUDIO: Byte = 1
         private const val TYPE_PING: Byte = 2
         private const val TYPE_PONG: Byte = 3
         private const val PING_INTERVAL_MS = 2000L
+        private const val PRESENCE_INTERVAL_MS = 3000L
+        private const val PRESENCE_EXPIRY_MS = 10000L
         private const val RETRY_DELAY_MS = 2000L
         // The phone with the larger id waits this long for the other phone to
         // connect first, then requests the connection itself. This avoids the
@@ -89,7 +90,44 @@ class MeshDiscoveryManager(
     private val client: ConnectionsClient = Nearby.getConnectionsClient(context.applicationContext)
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private val riderId: String = UUID.randomUUID().toString().take(6)
+    // A fresh id on every Start, so other phones never mix a restarted rider up with the old one.
+    private var riderId: String = UUID.randomUUID().toString().take(6)
+    private var myOrigin: Int = riderId.hashCode()
+    private var router = RelayRouter(myOrigin)
+    private var presenceSeq = 0
+
+    /** A rider we can hear, directly or through other riders. [hops] is 1 for a direct link. */
+    data class Reach(val name: String, val hops: Int)
+
+    private class ReachEntry(val name: String, val hops: Int, val seenAtMs: Long)
+    private val reach = ConcurrentHashMap<Int, ReachEntry>()
+
+    /** Riders heard in the last 10 seconds, nearest first. Includes riders reached through relays. */
+    val reachable: List<Reach>
+        get() {
+            val now = System.currentTimeMillis()
+            return reach.values
+                .filter { now - it.seenAtMs < PRESENCE_EXPIRY_MS }
+                .map { Reach(it.name, it.hops) }
+                .sortedBy { it.hops }
+        }
+
+    private fun originKey(origin: Int): String = Integer.toHexString(origin)
+
+    private val presenceTick = object : Runnable {
+        override fun run() {
+            if (!running) return
+            if (connected.isNotEmpty()) {
+                val msg = RelayPacket.encode(
+                    RelayPacket.TYPE_PRESENCE, myOrigin, RelayPacket.DEFAULT_TTL,
+                    presenceSeq, displayName.toByteArray(Charsets.UTF_8)
+                )
+                presenceSeq = (presenceSeq + 1) and 0xFFFF
+                client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+            }
+            mainHandler.postDelayed(this, PRESENCE_INTERVAL_MS)
+        }
+    }
     private var groupCode: String = ""
     private var displayName: String = ""
 
@@ -171,6 +209,11 @@ class MeshDiscoveryManager(
         strategy = if (twoPhoneFastMode) Strategy.P2P_POINT_TO_POINT else Strategy.P2P_CLUSTER
         drops = 0
         stop()
+        riderId = UUID.randomUUID().toString().take(6)
+        myOrigin = riderId.hashCode()
+        router = RelayRouter(myOrigin)
+        presenceSeq = 0
+        reach.clear()
         listener.onStatus("Link mode: " + (if (twoPhoneFastMode) "2-phone fast (point-to-point)" else "group (cluster)") + ", link type: ${linkType.label}")
         this.groupCode = groupCode.trim().uppercase().replace("|", "")
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
@@ -181,6 +224,7 @@ class MeshDiscoveryManager(
         startDiscovery()
         mainHandler.postDelayed(watchdog, WATCHDOG_MS)
         mainHandler.postDelayed(pinger, PING_INTERVAL_MS)
+        mainHandler.postDelayed(presenceTick, PRESENCE_INTERVAL_MS)
         synchronized(rttWindow) { rttWindow.clear() }
         linkRttMs = -1
         linkRttWorstMs = -1
@@ -216,12 +260,17 @@ class MeshDiscoveryManager(
 
     fun connectedCount(): Int = connected.size
 
-    /** Sends one voice packet (sequence number + Opus data) to everyone connected. */
+    /**
+     * Sends one voice packet ([sequence 2 bytes][Opus data]) to everyone connected.
+     * It is wrapped so that other riders can pass it on to riders we cannot reach.
+     */
     fun sendAudio(packet: ByteArray) {
-        if (connected.isEmpty()) return
-        val message = ByteArray(packet.size + 1)
-        message[0] = TYPE_AUDIO
-        System.arraycopy(packet, 0, message, 1, packet.size)
+        if (connected.isEmpty() || packet.size < 3) return
+        val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
+        val message = RelayPacket.encode(
+            RelayPacket.TYPE_AUDIO, myOrigin, RelayPacket.DEFAULT_TTL, seq,
+            packet.copyOfRange(2, packet.size)
+        )
         client.sendPayload(connected.keys.toList(), Payload.fromBytes(message))
     }
 
@@ -361,7 +410,7 @@ class MeshDiscoveryManager(
             val bytes = payload.asBytes() ?: return
             if (bytes.size < 4) return
             when (bytes[0]) {
-                TYPE_AUDIO -> listener.onAudioFrame(endpointId, bytes.copyOfRange(1, bytes.size))
+                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE -> handleRelayed(endpointId, bytes)
                 TYPE_PING -> {
                     val pong = bytes.copyOf()
                     pong[0] = TYPE_PONG
@@ -376,6 +425,25 @@ class MeshDiscoveryManager(
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
             // Nothing to track for small BYTES payloads.
+        }
+    }
+
+    /** Plays a message that came from a rider (maybe far away) and passes it on to the others. */
+    private fun handleRelayed(fromEndpointId: String, bytes: ByteArray) {
+        val p = RelayPacket.parse(bytes) ?: return
+        val decision = router.accept(p.type, p.origin, p.seq, p.ttl)
+        if (decision.forward) {
+            val others = connected.keys.filter { it != fromEndpointId }
+            if (others.isNotEmpty()) {
+                client.sendPayload(others, Payload.fromBytes(RelayPacket.withTtl(bytes, p.ttl - 1)))
+            }
+        }
+        if (!decision.deliver) return
+        if (p.type == RelayPacket.TYPE_AUDIO) {
+            listener.onAudioFrame(originKey(p.origin), bytes.copyOfRange(RelayPacket.SEQ_OFFSET, bytes.size))
+        } else {
+            val name = String(bytes, RelayPacket.HEADER_SIZE, bytes.size - RelayPacket.HEADER_SIZE, Charsets.UTF_8)
+            reach[p.origin] = ReachEntry(name, RelayPacket.hopsTravelled(p.ttl), System.currentTimeMillis())
         }
     }
 

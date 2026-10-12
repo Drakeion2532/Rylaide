@@ -74,6 +74,7 @@ class IntercomAudioEngine(
     private class PeerStream {
         val jitter = JitterBuffer()
         val decoder = OpusVoiceDecoder()
+        @Volatile var lastHeardMs = 0L
     }
     private val peers = ConcurrentHashMap<String, PeerStream>()
 
@@ -212,16 +213,20 @@ class IntercomAudioEngine(
      * Called with a voice packet received from another rider. Safe from any
      * thread. [packet] is the 2-byte sequence number followed by Opus data.
      */
-    fun enqueuePlayback(endpointId: String, packet: ByteArray) {
+    private var lastPruneMs = 0L
+
+    /** [riderKey] is the rider who made the voice, even if it reached us through other riders. */
+    fun enqueuePlayback(riderKey: String, packet: ByteArray) {
         if (!running || packet.size < 3) return
         val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
-        val stream = peers.getOrPut(endpointId) { PeerStream() }
+        val stream = peers.getOrPut(riderKey) { PeerStream() }
+        val now = System.currentTimeMillis()
+        stream.lastHeardMs = now
         stream.jitter.put(seq, packet.copyOfRange(2, packet.size))
-    }
-
-    /** Forget riders who are no longer connected. */
-    fun keepOnly(endpointIds: Collection<String>) {
-        peers.keys.retainAll(endpointIds.toSet())
+        if (now - lastPruneMs > 2000) {
+            lastPruneMs = now
+            peers.entries.removeAll { now - it.value.lastHeardMs > 15000 }
+        }
     }
 
     private fun captureLoop(rec: AudioRecord) {

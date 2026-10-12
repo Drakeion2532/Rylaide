@@ -52,6 +52,15 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     val concealedFrames: Long get() = engine.concealedFrames
     val lateFrames: Long get() = engine.lateFrames
     val bufferedMs: Int get() = engine.bufferedMs
+    /** Riders we can hear right now, including ones reached through other riders. */
+    val reachableText: String
+        get() {
+            val list = mesh.reachable
+            if (list.isEmpty()) return "none yet"
+            return list.joinToString(", ") {
+                if (it.hops == 1) "${it.name} (direct)" else "${it.name} (${it.hops} hops)"
+            }
+        }
     val linkRttMs: Int get() = mesh.linkRttMs
     val linkRttWorstMs: Int get() = mesh.linkRttWorstMs
     private var thresholdState by mutableStateOf(engine.vad.threshold)
@@ -178,7 +187,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 14, steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 15, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -227,7 +236,6 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
 
     override fun onPeersChanged(peers: List<MeshDiscoveryManager.Peer>) {
         this.peers = peers
-        engine.keepOnly(peers.map { it.endpointId })
     }
 
     override fun onAudioFrame(fromEndpointId: String, packet: ByteArray) {
