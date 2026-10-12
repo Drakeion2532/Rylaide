@@ -7,6 +7,8 @@ import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
 import com.google.android.gms.nearby.connection.BandwidthInfo
 import com.google.android.gms.nearby.connection.ConnectionInfo
+import com.google.android.gms.nearby.connection.ConnectionOptions
+import com.google.android.gms.nearby.connection.ConnectionType
 import com.google.android.gms.nearby.connection.ConnectionLifecycleCallback
 import com.google.android.gms.nearby.connection.ConnectionResolution
 import com.google.android.gms.nearby.connection.ConnectionsClient
@@ -53,6 +55,20 @@ class MeshDiscoveryManager(
     }
 
     data class Peer(val endpointId: String, val name: String)
+
+    /**
+     * How the phone-to-phone link may use the phone's radios. Build 13 logs showed
+     * the link dropping each time Nearby changed between Bluetooth and Wi-Fi, so
+     * these are for finding which setting stays connected best.
+     */
+    enum class LinkType(val label: String) {
+        /** Google decides. May switch to Wi-Fi in a way that briefly breaks the link. */
+        AUTO("Auto (Google decides)"),
+        /** No switch that disrupts the phone's own Wi-Fi. Our best guess for stability. */
+        STEADY("Steady (no disruptive switch)"),
+        /** Stay on low-power Bluetooth and never move to Wi-Fi. For testing. */
+        BLUETOOTH_ONLY("Bluetooth only (test)")
+    }
 
     companion object {
         private const val SERVICE_ID = "com.rylaide.app.mesh"
@@ -138,17 +154,24 @@ class MeshDiscoveryManager(
         private set
 
     private var strategy: Strategy = Strategy.P2P_CLUSTER
+    private var linkType: LinkType = LinkType.STEADY
 
     /**
      * [twoPhoneFastMode] uses Nearby's 1-to-1 mode, which Google describes as the
      * highest bandwidth, but allows only one connection. Both phones must use
      * the same mode.
      */
-    fun start(groupCode: String, displayName: String, twoPhoneFastMode: Boolean = false) {
+    fun start(
+        groupCode: String,
+        displayName: String,
+        twoPhoneFastMode: Boolean = false,
+        linkType: LinkType = LinkType.STEADY
+    ) {
+        this.linkType = linkType
         strategy = if (twoPhoneFastMode) Strategy.P2P_POINT_TO_POINT else Strategy.P2P_CLUSTER
         drops = 0
         stop()
-        listener.onStatus("Link mode: " + if (twoPhoneFastMode) "2-phone fast (point-to-point)" else "group (cluster)")
+        listener.onStatus("Link mode: " + (if (twoPhoneFastMode) "2-phone fast (point-to-point)" else "group (cluster)") + ", link type: ${linkType.label}")
         this.groupCode = groupCode.trim().uppercase().replace("|", "")
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
         running = true
@@ -203,14 +226,24 @@ class MeshDiscoveryManager(
     }
 
     private fun startAdvertising() {
-        val options = AdvertisingOptions.Builder().setStrategy(strategy).build()
+        val builder = AdvertisingOptions.Builder().setStrategy(strategy)
+        when (linkType) {
+            LinkType.AUTO -> {}
+            LinkType.STEADY -> builder.setConnectionType(ConnectionType.NON_DISRUPTIVE)
+            LinkType.BLUETOOTH_ONLY -> builder
+                .setConnectionType(ConnectionType.NON_DISRUPTIVE)
+                .setLowPower(true)
+        }
+        val options = builder.build()
         client.startAdvertising(localEndpointName(), SERVICE_ID, lifecycleCallback, options)
             .addOnSuccessListener { listener.onStatus("Advertising as ${displayName} (group $groupCode)") }
             .addOnFailureListener { listener.onStatus("Advertising failed: ${it.message}") }
     }
 
     private fun startDiscovery() {
-        val options = DiscoveryOptions.Builder().setStrategy(strategy).build()
+        val builder = DiscoveryOptions.Builder().setStrategy(strategy)
+        if (linkType == LinkType.BLUETOOTH_ONLY) builder.setLowPower(true)
+        val options = builder.build()
         client.startDiscovery(SERVICE_ID, discoveryCallback, options)
             .addOnSuccessListener { listener.onStatus("Looking for riders in group $groupCode…") }
             .addOnFailureListener { listener.onStatus("Discovery failed: ${it.message}") }
@@ -218,10 +251,31 @@ class MeshDiscoveryManager(
 
     private fun requestConnectionTo(endpointId: String) {
         if (!running || connected.containsKey(endpointId) || !pending.add(endpointId)) return
-        client.requestConnection(localEndpointName(), endpointId, lifecycleCallback)
+        val builder = ConnectionOptions.Builder()
+        when (linkType) {
+            LinkType.AUTO -> {}
+            LinkType.STEADY -> builder.setConnectionType(ConnectionType.NON_DISRUPTIVE)
+            LinkType.BLUETOOTH_ONLY -> builder
+                .setConnectionType(ConnectionType.NON_DISRUPTIVE)
+                .setLowPower(true)
+        }
+        client.requestConnection(localEndpointName(), endpointId, lifecycleCallback, builder.build())
             .addOnFailureListener {
                 pending.remove(endpointId)
                 listener.onStatus("Connection request failed: ${it.message}")
+                // 8011 means that phone is no longer where we saw it. Forget it and
+                // search again instead of retrying a dead address.
+                if (it.message?.contains("8011") == true) {
+                    discovered.remove(endpointId)
+                    if (running && connected.isEmpty()) {
+                        mainHandler.postDelayed({
+                            if (running && connected.isEmpty() && pending.isEmpty()) {
+                                client.stopDiscovery()
+                                startDiscovery()
+                            }
+                        }, 1000L)
+                    }
+                }
             }
     }
 

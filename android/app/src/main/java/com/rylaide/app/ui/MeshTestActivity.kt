@@ -231,16 +231,25 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 onCheckedChange = { vm.fastMode = it }
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                val all = com.rylaide.app.audio.NoiseSuppressor.Level.values()
+                vm.noiseLevel = all[(vm.noiseLevel.ordinal + 1) % all.size]
+            },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Rylaide wind and noise reducer" + if (vm.noiseReducer && vm.windDetected) "  (wind heard)" else "")
-            androidx.compose.material3.Switch(
-                checked = vm.noiseReducer,
-                onCheckedChange = { vm.noiseReducer = it }
-            )
+            Text("Wind and noise reducer: ${vm.noiseLevel.label}" +
+                (if (vm.noiseLevel != com.rylaide.app.audio.NoiseSuppressor.Level.OFF && vm.windDetected) "  (wind heard)" else "") +
+                "  · tap to change")
+        }
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                val all = MeshDiscoveryManager.LinkType.values()
+                vm.linkType = all[(vm.linkType.ordinal + 1) % all.size]
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Link type: ${vm.linkType.label}  · tap to change, then Stop and Start")
         }
         Text("Mic sensitivity: x${"%.1f".format(vm.micSensitivity)}   (raise it if you must hold the mic close to talk)")
         Slider(

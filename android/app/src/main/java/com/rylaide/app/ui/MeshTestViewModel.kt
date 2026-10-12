@@ -85,15 +85,18 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     var fastMode by mutableStateOf(false)
     val linkDrops: Int get() = mesh.drops
 
-    private var noiseReducerState by mutableStateOf(true)
-    /** Rylaide's own wind and background noise reducer. */
-    var noiseReducer: Boolean
-        get() = noiseReducerState
+    private var noiseLevelState by mutableStateOf(com.rylaide.app.audio.NoiseSuppressor.Level.HIGH)
+    /** Strength of Rylaide's own wind and background noise reducer. Planned as a paid feature later. */
+    var noiseLevel: com.rylaide.app.audio.NoiseSuppressor.Level
+        get() = noiseLevelState
         set(value) {
-            noiseReducerState = value
-            engine.noiseReducer.enabled = value
-            addLog("Rylaide noise reducer: " + if (value) "ON" else "OFF")
+            noiseLevelState = value
+            engine.noiseReducer.level = value
+            addLog("Rylaide noise reducer: ${value.label}")
         }
+
+    var linkType by mutableStateOf(MeshDiscoveryManager.LinkType.STEADY)
+
     /** True while the reducer thinks it hears wind. */
     val windDetected: Boolean get() = engine.noiseReducer.windDetected
 
@@ -167,7 +170,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         framesReceived.set(0)
         engine.start()
         applyRoute()
-        mesh.start(groupCode, name, fastMode)
+        mesh.start(groupCode, name, fastMode, linkType)
         running = true
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
@@ -175,7 +178,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 13, link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 14, steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

@@ -27,7 +27,16 @@ import kotlin.math.sqrt
  *
  * Works on 16 kHz mono, in pieces that are a multiple of [HOP] samples.
  */
-class NoiseSuppressor(private val floorGain: Double = 0.12) {
+class NoiseSuppressor {
+
+    /** How hard to turn background noise down. Higher levels sound a little more processed. */
+    enum class Level(val label: String, val floorGain: Double, val windFloor: Double) {
+        OFF("Off", 1.0, 1.0),
+        LOW("Low", 0.35, 0.25),
+        MEDIUM("Medium", 0.2, 0.12),
+        HIGH("High", 0.12, 0.06)
+    }
+
 
     companion object {
         const val HOP = 160
@@ -38,11 +47,15 @@ class NoiseSuppressor(private val floorGain: Double = 0.12) {
         /** Bands below about 1 kHz (31.25 Hz each). */
         const val LOW_BANDS = 33
         private const val WARMUP_HOPS = 25
-        private const val WIND_FLOOR = 0.06
     }
 
-    /** Turn the reducer off to compare. When off, audio passes straight through. */
-    @Volatile var enabled: Boolean = true
+    /** Strength of the reducer. [Level.OFF] passes audio straight through. */
+    @Volatile var level: Level = Level.HIGH
+
+    /** Shortcut: false means off, true means on at the current (or High) level. */
+    var enabled: Boolean
+        get() = level != Level.OFF
+        set(value) { level = if (!value) Level.OFF else if (level == Level.OFF) Level.HIGH else level }
 
     /** True while the last chunk looked like wind (for the on-screen test info). */
     @Volatile var windDetected: Boolean = false
@@ -82,7 +95,7 @@ class NoiseSuppressor(private val floorGain: Double = 0.12) {
 
     /** Cleans [samples] in place. The length must be a multiple of [HOP]. */
     fun process(samples: ShortArray) {
-        if (!enabled) {
+        if (level == Level.OFF) {
             // Keep the history moving so switching on mid-stream does not click.
             return
         }
@@ -139,12 +152,13 @@ class NoiseSuppressor(private val floorGain: Double = 0.12) {
         }
 
         // 2. Work out how much of each band is voice and turn the rest down.
+        val lv = level
         for (k in 0 until BINS) {
             val post = power[k] / (noise[k] + 1e-9)
             val prior = 0.92 * prevGain[k] * prevGain[k] * prevPost[k] +
                 0.08 * max(post - 1.0, 0.0)
-            var g = max(prior / (1.0 + prior), floorGain)
-            if (windy && k < LOW_BANDS) g = min(g, WIND_FLOOR)
+            var g = max(prior / (1.0 + prior), lv.floorGain)
+            if (windy && k < LOW_BANDS) g = min(g, lv.windFloor)
             gain[k] = g
             prevPost[k] = post
             prevGain[k] = g

@@ -107,6 +107,31 @@ class NoiseSuppressorTest {
     }
 
     @Test
+    fun lowLevelTurnsNoiseDownLessThanHighLevel() {
+        fun residual(level: NoiseSuppressor.Level): Double {
+            val ns = NoiseSuppressor()
+            ns.level = level
+            val st = DoubleArray(1)
+            val r = Random(11)
+            var out = 0.0
+            var n = 0
+            repeat(150) { idx ->
+                val f = ShortArray(frame)
+                for (i in 0 until frame) {
+                    st[0] = 0.9 * st[0] + r.nextGaussian()
+                    f[i] = (st[0] * 800.0 / 2.3).toInt().toShort()
+                }
+                ns.process(f)
+                if (idx >= 50) { out += rms(f); n++ }
+            }
+            return out / n
+        }
+        val low = residual(NoiseSuppressor.Level.LOW)
+        val high = residual(NoiseSuppressor.Level.HIGH)
+        assertTrue("low=$low should be louder than high=$high", low > high * 1.3)
+    }
+
+    @Test
     fun switchedOffPassesAudioUnchanged() {
         val ns = NoiseSuppressor()
         ns.enabled = false
