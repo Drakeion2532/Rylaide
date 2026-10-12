@@ -133,8 +133,22 @@ class MeshDiscoveryManager(
         return Triple(parts[0], parts[1], parts[2])
     }
 
-    fun start(groupCode: String, displayName: String) {
+    /** Times a connected phone dropped since Start (a rough measure of how stable the link is). */
+    @Volatile var drops: Int = 0
+        private set
+
+    private var strategy: Strategy = Strategy.P2P_CLUSTER
+
+    /**
+     * [twoPhoneFastMode] uses Nearby's 1-to-1 mode, which Google describes as the
+     * highest bandwidth, but allows only one connection. Both phones must use
+     * the same mode.
+     */
+    fun start(groupCode: String, displayName: String, twoPhoneFastMode: Boolean = false) {
+        strategy = if (twoPhoneFastMode) Strategy.P2P_POINT_TO_POINT else Strategy.P2P_CLUSTER
+        drops = 0
         stop()
+        listener.onStatus("Link mode: " + if (twoPhoneFastMode) "2-phone fast (point-to-point)" else "group (cluster)")
         this.groupCode = groupCode.trim().uppercase().replace("|", "")
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
         running = true
@@ -189,14 +203,14 @@ class MeshDiscoveryManager(
     }
 
     private fun startAdvertising() {
-        val options = AdvertisingOptions.Builder().setStrategy(Strategy.P2P_CLUSTER).build()
+        val options = AdvertisingOptions.Builder().setStrategy(strategy).build()
         client.startAdvertising(localEndpointName(), SERVICE_ID, lifecycleCallback, options)
             .addOnSuccessListener { listener.onStatus("Advertising as ${displayName} (group $groupCode)") }
             .addOnFailureListener { listener.onStatus("Advertising failed: ${it.message}") }
     }
 
     private fun startDiscovery() {
-        val options = DiscoveryOptions.Builder().setStrategy(Strategy.P2P_CLUSTER).build()
+        val options = DiscoveryOptions.Builder().setStrategy(strategy).build()
         client.startDiscovery(SERVICE_ID, discoveryCallback, options)
             .addOnSuccessListener { listener.onStatus("Looking for riders in group $groupCode…") }
             .addOnFailureListener { listener.onStatus("Discovery failed: ${it.message}") }
@@ -275,7 +289,7 @@ class MeshDiscoveryManager(
         }
 
         override fun onDisconnected(endpointId: String) {
-            connected.remove(endpointId)
+            if (connected.remove(endpointId) != null) drops++
             pending.remove(endpointId)
             notifyPeers()
             listener.onStatus("A rider went out of range. Reconnecting…")

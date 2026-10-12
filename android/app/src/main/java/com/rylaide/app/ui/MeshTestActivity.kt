@@ -94,6 +94,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var buffered by remember { mutableStateOf(0) }
     var rtt by remember { mutableStateOf(-1) }
     var rttWorst by remember { mutableStateOf(-1) }
+    var drops by remember { mutableStateOf(0) }
     var gate by remember { mutableStateOf(0.0) }
     var boost by remember { mutableStateOf(1.0) }
 
@@ -120,6 +121,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             buffered = vm.bufferedMs
             rtt = vm.linkRttMs
             rttWorst = vm.linkRttWorstMs
+            drops = vm.linkDrops
             gate = vm.gateLevel
             boost = vm.micBoost
             delay(500)
@@ -193,7 +195,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             else "Connected riders: " + vm.peers.joinToString { it.name }
         )
         Text("Voice packets sent: $sent   ·   received: $received")
-        Text(if (rtt < 0) "Link delay: not measured yet" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms")
+        Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops")
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
         Row(
@@ -216,6 +218,17 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             androidx.compose.material3.Switch(
                 checked = vm.phoneNoiseSuppressor,
                 onCheckedChange = { vm.phoneNoiseSuppressor = it }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("2-phone fast link (same on both phones, then Stop and Start)")
+            androidx.compose.material3.Switch(
+                checked = vm.fastMode,
+                onCheckedChange = { vm.fastMode = it }
             )
         }
         Row(

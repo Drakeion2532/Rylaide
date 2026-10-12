@@ -81,6 +81,10 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             addLog("Phone noise suppressor: " + if (value) "ON" else "OFF")
         }
 
+    /** 2-phone fast link mode. Both phones must match. Takes effect the next time you tap Start. */
+    var fastMode by mutableStateOf(false)
+    val linkDrops: Int get() = mesh.drops
+
     private var noiseReducerState by mutableStateOf(true)
     /** Rylaide's own wind and background noise reducer. */
     var noiseReducer: Boolean
@@ -163,7 +167,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         framesReceived.set(0)
         engine.start()
         applyRoute()
-        mesh.start(groupCode, name)
+        mesh.start(groupCode, name, fastMode)
         running = true
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
@@ -171,7 +175,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 12, link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 13, link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
