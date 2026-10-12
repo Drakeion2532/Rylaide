@@ -73,6 +73,7 @@ class NoiseSuppressor {
     private val prevGain = DoubleArray(BINS)
     private val prevPost = DoubleArray(BINS)
     private val power = DoubleArray(BINS)
+    private val smoothPower = DoubleArray(BINS)
     private val gain = DoubleArray(BINS)
     private val re = DoubleArray(FFT_SIZE)
     private val im = DoubleArray(FFT_SIZE)
@@ -124,8 +125,12 @@ class NoiseSuppressor {
         for (k in 0 until BINS) power[k] = re[k] * re[k] + im[k] * im[k]
 
         if (hopsSeen == 0) {
-            for (k in 0 until BINS) noise[k] = power[k] + 1.0
+            for (k in 0 until BINS) {
+                noise[k] = power[k] + 1.0
+                smoothPower[k] = power[k]
+            }
         }
+        for (k in 0 until BINS) smoothPower[k] = 0.8 * smoothPower[k] + 0.2 * power[k]
         val warm = hopsSeen < WARMUP_HOPS
         hopsSeen++
 
@@ -137,16 +142,18 @@ class NoiseSuppressor {
         val windy = !voiced && low > 3.0 * high
         windDetected = windy
 
-        // 1. Update the background guess (slow up, fast down).
+        // 1. Update the background guess. It follows a smoothed copy of the sound,
+        //    falls gently when things get quieter, and barely rises when a band is
+        //    much louder than the guess (that is probably a voice, not background).
         for (k in 0 until BINS) {
-            val p = power[k]
+            val p = smoothPower[k]
             val n = noise[k]
             val rate = when {
-                p <= n -> 0.4
                 warm -> 0.3
-                windy && k < LOW_BANDS -> 0.25
-                p / (n + 1e-9) > 3.0 -> 0.0008
-                else -> 0.01
+                windy && k < LOW_BANDS -> if (p > n) 0.2 else 0.3
+                p <= n -> 0.05
+                p / (n + 1e-9) > 4.0 -> 0.0004
+                else -> 0.004
             }
             noise[k] = n + rate * (p - n)
         }
