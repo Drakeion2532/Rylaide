@@ -84,7 +84,11 @@ class MeshDiscoveryManager(
         private const val SECOND_CHANCE_DELAY_MS = 3000L
         // If nobody has connected for this long, restart searching. Bluetooth
         // scanning on some phones quietly stalls.
-        private const val WATCHDOG_MS = 15000L
+        private const val WATCHDOG_MS = 8000L
+        // Restarting the search throws away a search that may be about to succeed
+        // (Bluetooth discovery can take a while), so only do it after this long
+        // with nobody found at all.
+        private const val SEARCH_RESTART_MS = 25000L
     }
 
     private val client: ConnectionsClient = Nearby.getConnectionsClient(context.applicationContext)
@@ -219,6 +223,8 @@ class MeshDiscoveryManager(
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
         running = true
         startedAtMs = System.currentTimeMillis()
+        lastSearchRestartMs = startedAtMs
+        searchRestarts = 0
         firstConnectionLogged = false
         startAdvertising()
         startDiscovery()
@@ -230,16 +236,36 @@ class MeshDiscoveryManager(
         linkRttWorstMs = -1
     }
 
-    /** Restarts advertising and searching while we have no connections. */
+    private var lastSearchRestartMs = 0L
+    private var searchRestarts = 0
+
+    /** Seconds since Start, for the log, so we can see where the connect time goes. */
+    private fun stamp(): String = "[%.1f s]".format((System.currentTimeMillis() - startedAtMs) / 1000.0)
+
+    /**
+     * While we have no connection:
+     *  - if a rider has been found but not connected, ask again (that is quick);
+     *  - if nobody has been found for a while, restart the search (discovery first,
+     *    advertising every second time), but never sooner than [SEARCH_RESTART_MS].
+     */
     private val watchdog = object : Runnable {
         override fun run() {
             if (!running) return
             if (connected.isEmpty() && pending.isEmpty()) {
-                listener.onStatus("Still searching, restarting the search…")
-                client.stopAdvertising()
-                client.stopDiscovery()
-                startAdvertising()
-                startDiscovery()
+                if (discovered.isNotEmpty()) {
+                    listener.onStatus("${stamp()} Found a rider, not connected yet. Asking again…")
+                    for (id in discovered.keys.toList()) requestConnectionTo(id)
+                } else if (System.currentTimeMillis() - lastSearchRestartMs >= SEARCH_RESTART_MS) {
+                    searchRestarts++
+                    lastSearchRestartMs = System.currentTimeMillis()
+                    listener.onStatus("${stamp()} Nobody found yet. Restarting the search (#$searchRestarts)…")
+                    client.stopDiscovery()
+                    startDiscovery()
+                    if (searchRestarts % 2 == 0) {
+                        client.stopAdvertising()
+                        startAdvertising()
+                    }
+                }
             }
             mainHandler.postDelayed(this, WATCHDOG_MS)
         }
@@ -300,6 +326,7 @@ class MeshDiscoveryManager(
 
     private fun requestConnectionTo(endpointId: String) {
         if (!running || connected.containsKey(endpointId) || !pending.add(endpointId)) return
+        listener.onStatus("${stamp()} Asking ${names[endpointId] ?: endpointId} to connect…")
         val builder = ConnectionOptions.Builder()
         when (linkType) {
             LinkType.AUTO -> {}
@@ -332,7 +359,9 @@ class MeshDiscoveryManager(
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             val (code, theirId, _) = parse(info.endpointName) ?: return
             if (code != groupCode || theirId == riderId) return
-            discovered[endpointId] = theirId
+            if (discovered.put(endpointId, theirId) == null) {
+                listener.onStatus("${stamp()} Found rider ${parse(info.endpointName)?.third ?: theirId}")
+            }
             if (riderId < theirId) {
                 // The phone with the smaller id starts the connection at once.
                 requestConnectionTo(endpointId)
@@ -361,6 +390,7 @@ class MeshDiscoveryManager(
             }
             discovered[endpointId] = parsed.second
             names[endpointId] = parsed.third
+            listener.onStatus("${stamp()} Handshake with ${parsed.third}")
             client.acceptConnection(endpointId, payloadCallback)
         }
 

@@ -187,7 +187,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 15, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 16, faster connect + lower delay, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -224,7 +224,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
 
     private fun addLog(line: String) {
         log.add(0, line)
-        while (log.size > 30) log.removeAt(log.size - 1)
+        while (log.size > 60) log.removeAt(log.size - 1)
     }
 
     // ---- MeshDiscoveryManager.Listener (called on the main thread) ----

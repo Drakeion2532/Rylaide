@@ -72,4 +72,36 @@ class JitterBufferTest {
         for (i in 0 until 12) b.put(i, data(i))
         assertTrue(b.bufferedFrames <= 5)
     }
+
+    @Test
+    fun aBurstOfPacketsIsNotKeptAsPermanentDelay() {
+        val b = JitterBuffer(prebufferFrames = 3, maxFrames = 12)
+        for (i in 0 until 10) b.put(i, data(i))   // ten arrive at once
+        val played = ArrayList<Int>()
+        repeat(4) { b.takeValue()?.let { v -> played.add(v) } }
+        assertTrue("delay should drain, still buffered ${b.bufferedFrames}", b.bufferedFrames <= 5)
+        assertTrue("some frames were skipped", b.skipped >= 2)
+        assertEquals("what is played stays in order", played.sorted(), played)
+    }
+
+    @Test
+    fun steadyFlowIsNeverSkipped() {
+        val b = JitterBuffer(prebufferFrames = 3)
+        for (i in 0 until 3) b.put(i, data(i))
+        for (i in 3 until 200) {
+            b.put(i, data(i and 0xFF))
+            assertTrue(b.takeValue() != null)
+        }
+        assertEquals(0L, b.skipped)
+        assertEquals(0L, b.concealed)
+    }
+
+    @Test
+    fun catchUpDoesNotJumpOverAGap() {
+        val b = JitterBuffer(prebufferFrames = 3, maxFrames = 12)
+        // 0,1,2 then a gap at 3, then 4..9 queued.
+        for (i in listOf(0, 1, 2, 4, 5, 6, 7, 8, 9)) b.put(i, data(i))
+        val got = (0 until 6).map { b.takeValue() }
+        assertTrue("the missing packet 3 is reported, not skipped silently", got.contains(-1))
+    }
 }

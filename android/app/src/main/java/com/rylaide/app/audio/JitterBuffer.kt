@@ -16,7 +16,8 @@ import java.util.TreeMap
  */
 class JitterBuffer(
     private val prebufferFrames: Int = 3,   // 3 x 20 ms = 60 ms
-    private val maxFrames: Int = 8           // never hold more than 160 ms, so delay cannot build up
+    private val maxFrames: Int = 8,          // never hold more than 160 ms, so delay cannot build up
+    private val catchUpExtraFrames: Int = 2  // above prebuffer + this, play faster to shed the extra delay
 ) {
 
     sealed class Result {
@@ -38,6 +39,9 @@ class JitterBuffer(
     @Volatile var concealed = 0L
         private set
     @Volatile var bufferedFrames = 0
+        private set
+    /** Frames skipped on purpose to shed delay after a burst of packets. */
+    @Volatile var skipped = 0L
         private set
 
     @Synchronized
@@ -69,6 +73,17 @@ class JitterBuffer(
         if (data != null) {
             nextSeq++
             emptyStreak = 0
+            // After a burst (the radio delivers a pile of packets at once) the extra
+            // packets would otherwise sit in the queue as permanent delay. While
+            // there are too many waiting, drop one per frame played, so the delay
+            // drains within a fraction of a second instead of staying for the whole talk.
+            if (packets.size > prebufferFrames + catchUpExtraFrames &&
+                packets.isNotEmpty() && packets.firstKey() == nextSeq
+            ) {
+                packets.pollFirstEntry()
+                nextSeq++
+                skipped++
+            }
             bufferedFrames = packets.size
             return Result.Packet(data)
         }
