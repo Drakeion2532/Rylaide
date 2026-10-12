@@ -121,7 +121,7 @@ three, and the paid tier.
 
 1. **Name:** Rylaide has had no trademark search. Check WIPO, TMview and IP India before the first store upload.
 2. **Default accent colour:** blue in Figma, amber earlier in the code.
-3. **Paid tier ("Rylaide Plus") on screen 72:** conflicts with "everything free". Keep, hide, or remove.
+3. **Paid tier ("Rylaide Plus") on screen 72:** conflicts with "everything free". You now want the higher noise-reduction levels to be paid. Decide before Step 16. See `docs/offline-link-plan.md`.
 4. **SOS scope:** only the group, or also emergency contacts and services.
 5. **Jacket and gloves in the checklist:** required, or only recommended on short commutes.
 6. **Splash screen:** not a separate frame in Figma yet.
