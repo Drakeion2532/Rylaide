@@ -35,8 +35,6 @@ class VoiceActivityDetectorTest {
         assertTrue(vad.isSpeech(chunk(600)))
     }
 
-    private fun chunk(level: Int) = ShortArray(320) { if (it % 2 == 0) level.toShort() else (-level).toShort() }
-
     @Test
     fun sensitiveModeOpensForQuieterVoiceThanAuto() {
         fun opens(sensitive: Boolean): Boolean {
