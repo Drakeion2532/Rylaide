@@ -29,7 +29,16 @@ class VoiceActivityDetector(
         const val MIN_AUTO_THRESHOLD = 60.0    // soft or distant speech in a quiet room still passes
         const val MAX_AUTO_THRESHOLD = 4000.0
         const val SPEECH_OVER_NOISE = 2.5      // gate opens at 2.5x the background level
+        const val SENSITIVE_OVER_NOISE = 1.5
     }
+
+    /** Open the gate for quieter voices (1.5x the background instead of 2.5x). */
+    @Volatile
+    var sensitive: Boolean = false
+
+    /** Never close the gate: everything is sent (after noise clean-up). For when speech keeps getting lost. */
+    @Volatile
+    var alwaysSend: Boolean = false
 
     /** True: threshold follows the background noise. False: use [threshold]. */
     @Volatile
@@ -47,7 +56,7 @@ class VoiceActivityDetector(
     /** The level the gate is using right now. */
     val effectiveThreshold: Double
         get() = if (auto) {
-            (maxOf(noiseFloor, 0.0) * SPEECH_OVER_NOISE).coerceIn(MIN_AUTO_THRESHOLD, MAX_AUTO_THRESHOLD)
+            (maxOf(noiseFloor, 0.0) * (if (sensitive) SENSITIVE_OVER_NOISE else SPEECH_OVER_NOISE)).coerceIn(MIN_AUTO_THRESHOLD, MAX_AUTO_THRESHOLD)
         } else {
             threshold
         }
@@ -65,6 +74,11 @@ class VoiceActivityDetector(
         val speech = rms >= effectiveThreshold
         loudStreak = if (speech) loudStreak + 1 else 0
         trackNoiseFloor(rms, speech)
+
+        if (alwaysSend) {
+            hangRemaining = hangoverFrames
+            return true
+        }
 
         if (speech) {
             hangRemaining = hangoverFrames

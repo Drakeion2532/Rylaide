@@ -23,10 +23,13 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- Keeps the link and mic alive with the screen off. Not used yet:
-         the Sprint 1 test needs the screen on. Added in the next step. -->
+    <!-- Keeps the link and mic alive with the screen off or another app in front. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="Rylaide"
@@ -47,6 +50,11 @@
         <activity
             android:name=".ui.HomeActivity"
             android:exported="false" />
+
+        <service
+            android:name=".service.RideService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|location|connectedDevice" />
 
     </application>
 </manifest>

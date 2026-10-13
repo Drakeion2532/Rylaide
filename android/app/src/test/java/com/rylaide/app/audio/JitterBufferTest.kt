@@ -104,4 +104,34 @@ class JitterBufferTest {
         val got = (0 until 6).map { b.takeValue() }
         assertTrue("the missing packet 3 is reported, not skipped silently", got.contains(-1))
     }
+
+    @Test
+    fun adaptiveBufferStartsShallowThenGrowsWhenPacketsGoMissing() {
+        val b = JitterBuffer(prebufferFrames = 2, adaptive = true)
+        assertEquals(2, b.prebufferNow)
+        for (i in listOf(0, 1, 3, 4)) b.put(i, data(i))
+        repeat(5) { b.takeValue() }                      // packet 2 is missing
+        assertTrue("grew to ${b.prebufferNow}", b.prebufferNow >= 3)
+    }
+
+    @Test
+    fun adaptiveBufferShrinksAgainAfterALongCleanStretch() {
+        val b = JitterBuffer(prebufferFrames = 2, adaptive = true)
+        for (i in listOf(0, 1, 3, 4)) b.put(i, data(i))
+        repeat(5) { b.takeValue() }
+        val grown = b.prebufferNow
+        var seq = 5
+        for (i in 0 until 4)  { b.put(seq, data(seq and 0xFF)); seq++ }
+        repeat(700) { b.put(seq, data(seq and 0xFF)); seq++; b.takeValue() }
+        assertTrue("shrank from $grown to ${b.prebufferNow}", b.prebufferNow < grown)
+        assertTrue(b.prebufferNow >= 2)
+    }
+
+    @Test
+    fun nonAdaptiveBufferNeverChangesDepth() {
+        val b = JitterBuffer(prebufferFrames = 3)
+        for (i in listOf(0, 1, 2, 4, 5, 6)) b.put(i, data(i))
+        repeat(7) { b.takeValue() }
+        assertEquals(3, b.prebufferNow)
+    }
 }

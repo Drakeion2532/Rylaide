@@ -18,6 +18,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.rylaide.app.audio.AudioRouteManager
 import com.rylaide.app.audio.IntercomAudioEngine
 import com.rylaide.app.mesh.MeshDiscoveryManager
+import com.rylaide.app.service.RideService
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -94,7 +95,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     var fastMode by mutableStateOf(false)
     val linkDrops: Int get() = mesh.drops
 
-    private var noiseLevelState by mutableStateOf(com.rylaide.app.audio.NoiseSuppressor.Level.HIGH)
+    private var noiseLevelState by mutableStateOf(com.rylaide.app.audio.NoiseSuppressor.Level.LOW)
     /** Strength of Rylaide's own wind and background noise reducer. Planned as a paid feature later. */
     var noiseLevel: com.rylaide.app.audio.NoiseSuppressor.Level
         get() = noiseLevelState
@@ -105,6 +106,61 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         }
 
     var linkType by mutableStateOf(MeshDiscoveryManager.LinkType.STEADY)
+
+    enum class VoiceGate(val label: String) {
+        AUTO("Auto"),
+        SENSITIVE("Sensitive (picks up quieter voice)"),
+        ALWAYS("Always send (nothing is cut off)")
+    }
+    private var voiceGateState by mutableStateOf(VoiceGate.AUTO)
+    /** How easily your voice opens the mic. Use Always send if the other rider misses words. */
+    var voiceGate: VoiceGate
+        get() = voiceGateState
+        set(value) {
+            voiceGateState = value
+            engine.vad.sensitive = value == VoiceGate.SENSITIVE
+            engine.vad.alwaysSend = value == VoiceGate.ALWAYS
+            addLog("Voice detection: ${value.label}")
+        }
+
+    private var boostState by mutableStateOf(1.0)
+    /** Extra loudness of what you hear: 1x, 2x, 3x or 4x. */
+    var incomingBoost: Double
+        get() = boostState
+        set(value) {
+            boostState = value
+            engine.playbackBoost = value
+            addLog("Incoming voice boost: x${"%.0f".format(value)}")
+        }
+
+    /** True while the phone is giving the app a silent mic. */
+    val micBlocked: Boolean get() = engine.micBlocked
+    private var lastMicBlocked = false
+
+    /** Called twice a second by the screen: logs when the mic gets blocked or comes back. */
+    fun checkMicBlocked() {
+        val now = engine.micBlocked
+        if (now != lastMicBlocked) {
+            lastMicBlocked = now
+            addLog(
+                if (now) "MIC BLOCKED: the phone is giving us a silent mic. Is the app in the background, or is a privacy switch off?"
+                else "Mic is working again"
+            )
+        }
+    }
+
+    /** Called by the screen when the app goes behind another app or the screen turns off. */
+    fun noteAppVisible(visible: Boolean) {
+        if (running) addLog(if (visible) "App back on screen" else "App went to the background (screen off or another app)")
+    }
+
+    /** Rough end-to-end delay, not counting the headset. See the note on the screen. */
+    val estimatedDelayMs: Int
+        get() {
+            val link = if (mesh.linkRttMs > 0) mesh.linkRttMs / 2 else 100
+            val jitter = maxOf(engine.bufferedMs, 40)
+            return 20 + 10 + 20 + link + jitter + engine.playbackBufferMs
+        }
 
     /** True while the reducer thinks it hears wind. */
     val windDetected: Boolean get() = engine.noiseReducer.windDetected
@@ -180,6 +236,12 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         engine.start()
         applyRoute()
         mesh.start(groupCode, name, fastMode, linkType)
+        try {
+            RideService.start(context)
+            addLog("Ride service started (keeps the mic and link alive in the background)")
+        } catch (t: Throwable) {
+            addLog("Ride service could not start: ${t.message}")
+        }
         running = true
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
@@ -187,7 +249,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 16, faster connect + lower delay, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 17, ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -208,6 +270,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         micOpen = false
         engine.stop()
         mesh.stop()
+        RideService.stop(getApplication<Application>())
         val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
         mainHandler.removeCallbacksAndMessages(null)

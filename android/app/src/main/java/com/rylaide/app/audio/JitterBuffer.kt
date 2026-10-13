@@ -17,7 +17,15 @@ import java.util.TreeMap
 class JitterBuffer(
     private val prebufferFrames: Int = 3,   // 3 x 20 ms = 60 ms
     private val maxFrames: Int = 8,          // never hold more than 160 ms, so delay cannot build up
-    private val catchUpExtraFrames: Int = 2  // above prebuffer + this, play faster to shed the extra delay
+    private val catchUpExtraFrames: Int = 2, // above prebuffer + this, play faster to shed the extra delay
+    /**
+     * Start shallow and only grow when packets actually go missing or arrive late,
+     * then shrink again after a long steady stretch. Less delay on a good link,
+     * smooth audio on a bad one.
+     */
+    private val adaptive: Boolean = false,
+    private val minPrebuffer: Int = 2,
+    private val maxPrebuffer: Int = 5
 ) {
 
     sealed class Result {
@@ -33,6 +41,12 @@ class JitterBuffer(
     private var nextSeq = -1L           // next sequence number to play
     private var playing = false
     private var emptyStreak = 0
+    private var target = prebufferFrames
+    private var goodStreak = 0
+
+    /** How many frames the buffer is waiting for before it starts playing right now. */
+    @Volatile var prebufferNow = prebufferFrames
+        private set
 
     @Volatile var lateDropped = 0L
         private set
@@ -49,6 +63,7 @@ class JitterBuffer(
         val seq = unwrap(seq16)
         if (playing && seq < nextSeq) {
             lateDropped++
+            grow()
             return
         }
         packets[seq] = data
@@ -58,7 +73,7 @@ class JitterBuffer(
             repeat(drop) { packets.pollFirstEntry() }
             if (playing) nextSeq = packets.firstKey()
         }
-        if (!playing && packets.size >= prebufferFrames) {
+        if (!playing && packets.size >= target) {
             playing = true
             nextSeq = packets.firstKey()
             emptyStreak = 0
@@ -73,11 +88,17 @@ class JitterBuffer(
         if (data != null) {
             nextSeq++
             emptyStreak = 0
+            goodStreak++
+            if (adaptive && goodStreak >= 500 && target > minPrebuffer) { // 10 s of clean audio
+                target--
+                prebufferNow = target
+                goodStreak = 0
+            }
             // After a burst (the radio delivers a pile of packets at once) the extra
             // packets would otherwise sit in the queue as permanent delay. While
             // there are too many waiting, drop one per frame played, so the delay
             // drains within a fraction of a second instead of staying for the whole talk.
-            if (packets.size > prebufferFrames + catchUpExtraFrames &&
+            if (packets.size > target + catchUpExtraFrames &&
                 packets.isNotEmpty() && packets.firstKey() == nextSeq
             ) {
                 packets.pollFirstEntry()
@@ -91,6 +112,7 @@ class JitterBuffer(
             // Later packets are here but this one is not: it was lost.
             nextSeq++
             concealed++
+            grow()
             bufferedFrames = packets.size
             return Result.Missing
         }
@@ -103,6 +125,14 @@ class JitterBuffer(
         }
         bufferedFrames = 0
         return Result.Nothing
+    }
+
+    private fun grow() {
+        goodStreak = 0
+        if (adaptive && target < maxPrebuffer) {
+            target++
+            prebufferNow = target
+        }
     }
 
     /** Turns the 16-bit counter (which wraps at 65536) into an ever-growing number. */

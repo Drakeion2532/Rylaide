@@ -63,6 +63,18 @@ class IntercomAudioEngine(
      */
     @Volatile var micSensitivity: Double = 1.0
 
+    /** Extra loudness for what you hear (1.0 = normal). A soft limiter stops it from distorting. */
+    @Volatile var playbackBoost: Double = 1.0
+
+    /**
+     * True when the phone is handing the app a completely silent mic (all zeros for
+     * about a second). Android does this when the app is in the background without a
+     * foreground service, or when a system privacy switch is off.
+     */
+    @Volatile var micBlocked: Boolean = false
+        private set
+    private var zeroFrames = 0
+
     /** How much the app is boosting your voice right now (1.0 = no boost). */
     val micBoost: Double get() = autoGain.currentGain
 
@@ -72,7 +84,7 @@ class IntercomAudioEngine(
     private var sendSeq = 0
 
     private class PeerStream {
-        val jitter = JitterBuffer()
+        val jitter = JitterBuffer(prebufferFrames = 2, adaptive = true)
         val decoder = OpusVoiceDecoder()
         @Volatile var lastHeardMs = 0L
     }
@@ -112,6 +124,8 @@ class IntercomAudioEngine(
         highPass.reset()
         autoGain.reset()
         noiseReducer.reset()
+        zeroFrames = 0
+        micBlocked = false
 
         val minRecord = AudioRecord.getMinBufferSize(
             SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -246,6 +260,10 @@ class IntercomAudioEngine(
                 read += n
             }
             if (!running) return
+            var allZero = true
+            for (v in buffer) if (v.toInt() != 0) { allZero = false; break }
+            zeroFrames = if (allZero) zeroFrames + 1 else 0
+            micBlocked = zeroFrames >= 50
             // Always read so the recorder never backs up. Remove wind rumble,
             // then only send when the mic is open and the chunk looks like speech.
             highPass.process(buffer)
@@ -311,8 +329,12 @@ class IntercomAudioEngine(
                 }
                 if (ok) for (i in 0 until FRAME_SAMPLES) mix[i] += pcm[i].toInt()
             }
+            val boost = playbackBoost
             for (i in 0 until FRAME_SAMPLES) {
-                out[i] = mix[i].coerceIn(-32768, 32767).toShort()
+                var v = mix[i] * boost
+                // Soft limiter: loud peaks are rounded off instead of clipped.
+                if (v > 16000.0 || v < -16000.0) v = 32767.0 * Math.tanh(v / 32767.0)
+                out[i] = v.coerceIn(-32768.0, 32767.0).toInt().toShort()
             }
             val written = tr.write(out, 0, FRAME_SAMPLES)
             if (written < 0) Thread.sleep(20) // track not ready: avoid a busy loop

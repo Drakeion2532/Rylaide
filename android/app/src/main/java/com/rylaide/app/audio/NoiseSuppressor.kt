@@ -3,7 +3,6 @@ package com.rylaide.app.audio
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -17,10 +16,13 @@ import kotlin.math.sqrt
  *     (fan, engine hum, road hiss). It rises slowly and falls quickly, so a
  *     voice is not mistaken for background.
  *  3. Turn each band down by how much of it looks like background.
- *  4. Wind is a special case: it is a low rumble with no pitch. Voice also has
- *     low sound, but voice has a pitch (a repeating pattern) and wind does not.
- *     When a chunk is low-heavy and has no pitch, the low bands are treated as
- *     wind, followed quickly as gusts come and go, and turned down harder.
+ *  4. Wind: [windDetected] only reports that the sound looks like wind (low-heavy
+ *     and without a pitch). It does NOT change the processing. An earlier version
+ *     turned the low bands down hard when it heard wind; simulations showed that
+ *     in gusty wind louder than the voice this removed more voice than wind and made
+ *     things worse. Wind that overlaps the voice cannot be fixed by filtering:
+ *     it needs a shielded mic. This reducer is for steady background (fan,
+ *     engine hum, road hiss).
  *
  * It never turns a band fully off (the floor), because that sounds like a bad
  * phone line. Delay added: 10 ms.
@@ -30,11 +32,11 @@ import kotlin.math.sqrt
 class NoiseSuppressor {
 
     /** How hard to turn background noise down. Higher levels sound a little more processed. */
-    enum class Level(val label: String, val floorGain: Double, val windFloor: Double) {
-        OFF("Off", 1.0, 1.0),
-        LOW("Low", 0.35, 0.25),
-        MEDIUM("Medium", 0.2, 0.12),
-        HIGH("High", 0.12, 0.06)
+    enum class Level(val label: String, val floorGain: Double) {
+        OFF("Off", 1.0),
+        LOW("Low", 0.5),
+        MEDIUM("Medium", 0.3),
+        HIGH("High", 0.15)
     }
 
 
@@ -50,12 +52,12 @@ class NoiseSuppressor {
     }
 
     /** Strength of the reducer. [Level.OFF] passes audio straight through. */
-    @Volatile var level: Level = Level.HIGH
+    @Volatile var level: Level = Level.LOW
 
     /** Shortcut: false means off, true means on at the current (or High) level. */
     var enabled: Boolean
         get() = level != Level.OFF
-        set(value) { level = if (!value) Level.OFF else if (level == Level.OFF) Level.HIGH else level }
+        set(value) { level = if (!value) Level.OFF else if (level == Level.OFF) Level.LOW else level }
 
     /** True while the last chunk looked like wind (for the on-screen test info). */
     @Volatile var windDetected: Boolean = false
@@ -150,7 +152,6 @@ class NoiseSuppressor {
             val n = noise[k]
             val rate = when {
                 warm -> 0.3
-                windy && k < LOW_BANDS -> if (p > n) 0.2 else 0.3
                 p <= n -> 0.05
                 p / (n + 1e-9) > 4.0 -> 0.0004
                 else -> 0.004
@@ -165,7 +166,6 @@ class NoiseSuppressor {
             val prior = 0.92 * prevGain[k] * prevGain[k] * prevPost[k] +
                 0.08 * max(post - 1.0, 0.0)
             var g = max(prior / (1.0 + prior), lv.floorGain)
-            if (windy && k < LOW_BANDS) g = min(g, lv.windFloor)
             gain[k] = g
             prevPost[k] = post
             prevGain[k] = g

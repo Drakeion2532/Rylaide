@@ -34,4 +34,26 @@ class VoiceActivityDetectorTest {
         assertFalse(vad.isSpeech(chunk(400)))
         assertTrue(vad.isSpeech(chunk(600)))
     }
+
+    private fun chunk(level: Int) = ShortArray(320) { if (it % 2 == 0) level.toShort() else (-level).toShort() }
+
+    @Test
+    fun sensitiveModeOpensForQuieterVoiceThanAuto() {
+        fun opens(sensitive: Boolean): Boolean {
+            val vad = VoiceActivityDetector()
+            vad.auto = true
+            vad.sensitive = sensitive
+            repeat(200) { vad.isSpeech(chunk(500)) }      // learn steady background of 500
+            return vad.isSpeech(chunk(900))               // voice only 1.8x the background
+        }
+        assertFalse("auto should stay closed at 1.8x", opens(false))
+        assertTrue("sensitive should open at 1.8x", opens(true))
+    }
+
+    @Test
+    fun alwaysSendNeverClosesTheGate() {
+        val vad = VoiceActivityDetector()
+        vad.alwaysSend = true
+        repeat(100) { assertTrue(vad.isSpeech(chunk(5))) }
+    }
 }

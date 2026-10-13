@@ -3,7 +3,10 @@ package com.rylaide.app.ui
 import com.rylaide.app.mesh.MeshDiscoveryManager
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -50,6 +53,9 @@ class MeshTestActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Test screen only: keep the display on so nothing about the screen turning off
+        // can disturb a test. The ride service keeps things alive when you switch apps.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val colors = if (isSystemInDarkTheme()) {
                 darkColorScheme(primary = Color(0xFFE8A33D))
@@ -62,6 +68,16 @@ class MeshTestActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.noteAppVisible(true)
+    }
+
+    override fun onStop() {
+        viewModel.noteAppVisible(false)
+        super.onStop()
     }
 }
 
@@ -78,6 +94,7 @@ private fun requiredPermissions(): Array<String> {
     list += Manifest.permission.ACCESS_FINE_LOCATION
     if (Build.VERSION.SDK_INT >= 33) {
         list += Manifest.permission.NEARBY_WIFI_DEVICES
+        list += Manifest.permission.POST_NOTIFICATIONS
     }
     return list.toTypedArray()
 }
@@ -97,6 +114,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var rttWorst by remember { mutableStateOf(-1) }
     var drops by remember { mutableStateOf(0) }
     var reachText by remember { mutableStateOf("none yet") }
+    var micBlocked by remember { mutableStateOf(false) }
+    var delayMs by remember { mutableStateOf(0) }
     var gate by remember { mutableStateOf(0.0) }
     var boost by remember { mutableStateOf(1.0) }
 
@@ -125,6 +144,9 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             rttWorst = vm.linkRttWorstMs
             drops = vm.linkDrops
             reachText = vm.reachableText
+            vm.checkMicBlocked()
+            micBlocked = vm.micBlocked
+            delayMs = vm.estimatedDelayMs
             gate = vm.gateLevel
             boost = vm.micBoost
             delay(500)
@@ -198,7 +220,15 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             else "Connected riders: " + vm.peers.joinToString { it.name }
         )
         Text("Voice packets sent: $sent   ·   received: $received")
+        if (micBlocked) {
+            Text(
+                "MIC BLOCKED: the phone is giving the app a silent mic, so nobody can hear you.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
         Text("Riders you can hear: $reachText")
+        Text("Estimated delay: about $delayMs ms (your headset adds more: Bluetooth about 100 to 200 ms)")
         Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops")
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
@@ -243,8 +273,39 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Wind and noise reducer: ${vm.noiseLevel.label}" +
-                (if (vm.noiseLevel != com.rylaide.app.audio.NoiseSuppressor.Level.OFF && vm.windDetected) "  (wind heard)" else "") +
+                (if (vm.noiseLevel != com.rylaide.app.audio.NoiseSuppressor.Level.OFF && vm.windDetected) "  (wind-like sound)" else "") +
                 "  · tap to change")
+        }
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                val all = MeshTestViewModel.VoiceGate.values()
+                vm.voiceGate = all[(vm.voiceGate.ordinal + 1) % all.size]
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Voice detection: ${vm.voiceGate.label}  · tap to change")
+        }
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                val options = listOf(1.0, 2.0, 3.0, 4.0)
+                vm.incomingBoost = options[(options.indexOf(vm.incomingBoost) + 1) % options.size]
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Incoming voice boost: x${"%.0f".format(vm.incomingBoost)}  · tap to change (helps over wind at your ears)")
+        }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (t: Throwable) {
+                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Battery: set Rylaide to Not optimised / No restrictions")
         }
         androidx.compose.material3.OutlinedButton(
             onClick = {
