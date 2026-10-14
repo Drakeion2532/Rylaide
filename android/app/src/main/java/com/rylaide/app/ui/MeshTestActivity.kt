@@ -277,12 +277,6 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 "  · tap to change")
         }
         androidx.compose.material3.OutlinedButton(
-            onClick = { vm.usePhoneMic = !vm.usePhoneMic },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Mic source: " + (if (vm.usePhoneMic) "Phone mic (experimental)" else "Headset mic") + "  · tap to change")
-        }
-        androidx.compose.material3.OutlinedButton(
             onClick = {
                 val all = MeshTestViewModel.VoiceGate.values()
                 vm.voiceGate = all[(vm.voiceGate.ordinal + 1) % all.size]
