@@ -3,6 +3,8 @@ package com.rylaide.app.ui
 import android.app.Application
 import android.Manifest
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import android.media.AudioDeviceCallback
@@ -62,6 +64,26 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
                 if (it.hops == 1) "${it.name} (direct)" else "${it.name} (${it.hops} hops)"
             }
         }
+    /** Address of the relay server for the internet path, e.g. wss://rylaide-relay.you.workers.dev. Empty = offline only. */
+    var relayUrl by mutableStateOf(
+        getApplication<Application>().getSharedPreferences("rylaide", Context.MODE_PRIVATE)
+            .getString("relayUrl", "") ?: ""
+    )
+        private set
+
+    fun updateRelayUrl(value: String) {
+        relayUrl = value
+        getApplication<Application>().getSharedPreferences("rylaide", Context.MODE_PRIVATE)
+            .edit().putString("relayUrl", value.trim()).apply()
+    }
+
+    val internetUp: Boolean get() = mesh.internetUp
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) { mesh.internetReconnect() }
+    }
+    private var networkCallbackSet = false
+
     val linkRttMs: Int get() = mesh.linkRttMs
     val audioDropped: Int get() = mesh.audioDropped
     val linkRttWorstMs: Int get() = mesh.linkRttWorstMs
@@ -221,6 +243,12 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private fun applyRoute() {
+        val route = runCatching { com.rylaide.app.audio.AudioRoute.valueOf(audioRoute) }.getOrNull() ?: return
+        val (input, output) = routeManager.preferredDevices(route)
+        engine.setPreferredDevices(input, output)
+    }
+
     /** Call only after the runtime permissions have been granted. */
     fun start(groupCode: String, name: String) {
         if (running) return
@@ -230,7 +258,16 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         framesReceived.set(0)
         engine.start()
         applyRoute()
-        mesh.start(groupCode, name, fastMode, linkType)
+        mesh.start(groupCode, name, fastMode, linkType, relayUrl.trim())
+        if (relayUrl.isNotBlank()) {
+            try {
+                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                cm.registerDefaultNetworkCallback(networkCallback)
+                networkCallbackSet = true
+            } catch (t: Throwable) {
+                addLog("Network watcher could not start: ${t.message}")
+            }
+        }
         try {
             RideService.start(context)
             addLog("Ride service started (keeps the mic and link alive in the background)")
@@ -244,7 +281,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 19, link backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 20, internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -265,6 +302,13 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         micOpen = false
         engine.stop()
         mesh.stop()
+        if (networkCallbackSet) {
+            try {
+                (getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)
+                    .unregisterNetworkCallback(networkCallback)
+            } catch (_: Throwable) { }
+            networkCallbackSet = false
+        }
         RideService.stop(getApplication<Application>())
         val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.unregisterAudioDeviceCallback(deviceCallback)

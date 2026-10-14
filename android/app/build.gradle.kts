@@ -53,6 +53,7 @@ dependencies {
 
     // Mesh peer discovery over Wi-Fi Direct/Bluetooth, wrapped by Google Play Services
     implementation("com.google.android.gms:play-services-nearby:19.3.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Opus voice compression, pure Java
     implementation("io.github.jaredmdobson:concentus:1.0.2")
 
@@ -61,6 +62,7 @@ dependencies {
     // LiveKit later. The old WebRTC dependency was removed to keep builds light.
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     // TODO: add MapLibre Native (free, no key) when the map screen is built
 }

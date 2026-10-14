@@ -115,6 +115,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var drops by remember { mutableStateOf(0) }
     var reachText by remember { mutableStateOf("none yet") }
     var micBlocked by remember { mutableStateOf(false) }
+    var internetUp by remember { mutableStateOf(false) }
     var delayMs by remember { mutableStateOf(0) }
     var gate by remember { mutableStateOf(0.0) }
     var boost by remember { mutableStateOf(1.0) }
@@ -146,6 +147,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             reachText = vm.reachableText
             vm.checkMicBlocked()
             micBlocked = vm.micBlocked
+            internetUp = vm.internetUp
             delayMs = vm.estimatedDelayMs
             gate = vm.gateLevel
             boost = vm.micBoost
@@ -227,6 +229,13 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 style = MaterialTheme.typography.titleMedium
             )
         }
+        Text(
+            "Internet path: " + when {
+                vm.relayUrl.isBlank() -> "off (no relay server set)"
+                internetUp -> "connected"
+                else -> "not connected (offline link still works)"
+            }
+        )
         Text("Riders you can hear: $reachText")
         Text("Estimated delay: about $delayMs ms (your headset adds more: Bluetooth about 100 to 200 ms)")
         Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops   ·   voice skipped while link backed up: ${vm.audioDropped}")
@@ -276,6 +285,13 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 (if (vm.noiseLevel != com.rylaide.app.audio.NoiseSuppressor.Level.OFF && vm.windDetected) "  (wind-like sound)" else "") +
                 "  · tap to change")
         }
+        OutlinedTextField(
+            value = vm.relayUrl,
+            onValueChange = { vm.updateRelayUrl(it) },
+            label = { Text("Relay server (optional, for the internet path). Stop and Start after changing") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
         androidx.compose.material3.OutlinedButton(
             onClick = {
                 val all = MeshTestViewModel.VoiceGate.values()

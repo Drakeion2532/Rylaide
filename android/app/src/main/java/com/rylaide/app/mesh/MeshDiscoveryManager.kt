@@ -72,6 +72,8 @@ class MeshDiscoveryManager(
 
     companion object {
         private const val SERVICE_ID = "com.rylaide.app.mesh"
+        private const val INTERNET = "internet"
+        private const val INTERNET_SEEN_MS = 3000L
         private const val TYPE_PING: Byte = 2
         private const val TYPE_PONG: Byte = 3
         private const val PING_INTERVAL_MS = 2000L
@@ -123,13 +125,14 @@ class MeshDiscoveryManager(
     private val presenceTick = object : Runnable {
         override fun run() {
             if (!running) return
-            if (connected.isNotEmpty()) {
+            if (connected.isNotEmpty() || internet.up) {
                 val msg = RelayPacket.encode(
                     RelayPacket.TYPE_PRESENCE, myOrigin, RelayPacket.DEFAULT_TTL,
                     presenceSeq, displayName.toByteArray(Charsets.UTF_8)
                 )
                 presenceSeq = (presenceSeq + 1) and 0xFFFF
-                client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+                if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+                internet.send(msg)
             }
             mainHandler.postDelayed(this, PRESENCE_INTERVAL_MS)
         }
@@ -227,7 +230,8 @@ class MeshDiscoveryManager(
         groupCode: String,
         displayName: String,
         twoPhoneFastMode: Boolean = false,
-        linkType: LinkType = LinkType.STEADY
+        linkType: LinkType = LinkType.STEADY,
+        relayServerUrl: String = ""
     ) {
         this.linkType = linkType
         strategy = if (twoPhoneFastMode) Strategy.P2P_POINT_TO_POINT else Strategy.P2P_CLUSTER
@@ -254,7 +258,39 @@ class MeshDiscoveryManager(
         synchronized(rttWindow) { rttWindow.clear() }
         linkRttMs = -1
         linkRttWorstMs = -1
+        internetLastSeen.clear()
+        if (relayServerUrl.isNotBlank()) {
+            internet.start(relayServerUrl, this.groupCode)
+            listener.onStatus("Internet path: connecting to the relay server…")
+        } else {
+            listener.onStatus("Internet path: off (no relay server set). Offline link only.")
+        }
     }
+
+    // ---- Internet path (second road next to the offline link) ----
+
+    private val internet = InternetLink(object : InternetLink.Listener {
+        override fun onInternetState(up: Boolean) {
+            mainHandler.post {
+                if (running) listener.onStatus(if (up) "Internet path: connected" else "Internet path: down, offline link carries on")
+            }
+        }
+
+        override fun onInternetMessage(bytes: ByteArray) {
+            mainHandler.post { if (running && bytes.size >= 4) when (bytes[0]) {
+                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE -> handleRelayed(INTERNET, bytes)
+            } }
+        }
+    })
+
+    /** True while the relay server connection is up. */
+    val internetUp: Boolean get() = internet.up
+
+    /** Call when the phone's network changes so the internet path reconnects at once. */
+    fun internetReconnect() = internet.reconnectNow()
+
+    // origin -> when we last got a packet from it over the internet
+    private val internetLastSeen = ConcurrentHashMap<Int, Long>()
 
     private var lastSearchRestartMs = 0L
     private var searchRestarts = 0
@@ -297,6 +333,7 @@ class MeshDiscoveryManager(
         client.stopAdvertising()
         client.stopDiscovery()
         client.stopAllEndpoints()
+        internet.stop()
         connected.clear()
         discovered.clear()
         pending.clear()
@@ -311,14 +348,20 @@ class MeshDiscoveryManager(
      * It is wrapped so that other riders can pass it on to riders we cannot reach.
      */
     fun sendAudio(packet: ByteArray) {
-        if (connected.isEmpty() || packet.size < 3) return
-        if (congested) { audioDropped++; return }
+        if (packet.size < 3) return
+        val viaInternet = internet.up
+        val viaNearby = connected.isNotEmpty() && !congested
+        if (!viaInternet && !viaNearby) {
+            if (connected.isNotEmpty()) audioDropped++
+            return
+        }
         val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
         val message = RelayPacket.encode(
             RelayPacket.TYPE_AUDIO, myOrigin, RelayPacket.DEFAULT_TTL, seq,
             packet.copyOfRange(2, packet.size)
         )
-        client.sendPayload(connected.keys.toList(), Payload.fromBytes(message))
+        if (viaNearby) client.sendPayload(connected.keys.toList(), Payload.fromBytes(message))
+        if (viaInternet) internet.send(message)
     }
 
     private fun startAdvertising() {
@@ -482,11 +525,20 @@ class MeshDiscoveryManager(
     /** Plays a message that came from a rider (maybe far away) and passes it on to the others. */
     private fun handleRelayed(fromEndpointId: String, bytes: ByteArray) {
         val p = RelayPacket.parse(bytes) ?: return
+        val fromInternet = fromEndpointId == INTERNET
+        if (fromInternet) internetLastSeen[p.origin] = System.currentTimeMillis()
         val decision = router.accept(p.type, p.origin, p.seq, p.ttl)
         if (decision.forward) {
+            val passOn = RelayPacket.withTtl(bytes, p.ttl - 1)
             val others = connected.keys.filter { it != fromEndpointId }
-            if (others.isNotEmpty()) {
-                client.sendPayload(others, Payload.fromBytes(RelayPacket.withTtl(bytes, p.ttl - 1)))
+            if (others.isNotEmpty()) client.sendPayload(others, Payload.fromBytes(passOn))
+            // Act as a bridge: a rider with no internet reaches the internet through us.
+            // Skip it when that rider is already on the internet themselves.
+            if (!fromInternet && internet.up) {
+                val seenOnInternet = internetLastSeen[p.origin]
+                if (seenOnInternet == null || System.currentTimeMillis() - seenOnInternet > INTERNET_SEEN_MS) {
+                    internet.send(passOn)
+                }
             }
         }
         if (!decision.deliver) return

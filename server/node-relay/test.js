@@ -1,0 +1,20 @@
+const assert = require('assert');
+const WebSocket = require('ws');
+const { createRelay } = require('./server');
+const open = (url) => new Promise((res, rej) => { const w = new WebSocket(url); w.on('open', () => res(w)); w.on('error', rej); });
+const next = (w) => new Promise((res) => w.once('message', (d, bin) => res({ d, bin })));
+(async () => {
+  const relay = await createRelay(0);
+  const base = `ws://127.0.0.1:${relay.port}`;
+  const a = await open(`${base}/room/TEST`), b = await open(`${base}/room/TEST`), c = await open(`${base}/room/OTHER`);
+  let leaked = false; c.on('message', () => { leaked = true; });
+  const gotB = next(b); let echoed = false; a.on('message', () => { echoed = true; });
+  a.send(Buffer.from([4, 1, 2, 3]));
+  const m = await gotB;
+  assert.ok(m.bin); assert.deepStrictEqual([...m.d], [4, 1, 2, 3]);
+  await new Promise((r) => setTimeout(r, 150));
+  assert.ok(!leaked, 'other room must not hear it'); assert.ok(!echoed, 'sender must not hear itself');
+  await new Promise((res) => { const bad = new WebSocket(`${base}/nope`); bad.on('error', res); bad.on('close', res); });
+  [a, b, c].forEach((w) => w.close()); relay.close();
+  console.log('relay tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });
