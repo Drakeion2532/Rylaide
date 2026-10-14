@@ -108,6 +108,12 @@ class InternetLink(
                 listener.onInternetMessage(bytes.toByteArray())
             }
 
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                // The server hung up. Answer the close, then reconnect.
+                try { webSocket.close(1000, null) } catch (_: Throwable) { }
+                lost(webSocket)
+            }
+
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = lost(webSocket)
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = lost(webSocket)
