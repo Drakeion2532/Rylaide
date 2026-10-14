@@ -78,6 +78,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     }
 
     val internetUp: Boolean get() = mesh.internetUp
+    val playedText: String get() = "Voice played from: internet ${mesh.playedViaInternet} · offline link ${mesh.playedViaNearby}"
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) { mesh.internetReconnect() }

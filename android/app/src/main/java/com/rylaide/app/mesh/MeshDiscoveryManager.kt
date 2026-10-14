@@ -259,6 +259,8 @@ class MeshDiscoveryManager(
         linkRttMs = -1
         linkRttWorstMs = -1
         internetLastSeen.clear()
+        playedViaInternet = 0
+        playedViaNearby = 0
         if (relayServerUrl.isNotBlank()) {
             internet.start(relayServerUrl, this.groupCode)
             listener.onStatus("Internet path: connecting to the relay server…")
@@ -282,6 +284,12 @@ class MeshDiscoveryManager(
             } }
         }
     })
+
+    /** Voice packets that were played from the internet copy / the offline copy (whichever arrived first). */
+    @Volatile var playedViaInternet: Int = 0
+        private set
+    @Volatile var playedViaNearby: Int = 0
+        private set
 
     /** True while the relay server connection is up. */
     val internetUp: Boolean get() = internet.up
@@ -543,6 +551,7 @@ class MeshDiscoveryManager(
         }
         if (!decision.deliver) return
         if (p.type == RelayPacket.TYPE_AUDIO) {
+            if (fromInternet) playedViaInternet++ else playedViaNearby++
             listener.onAudioFrame(originKey(p.origin), bytes.copyOfRange(RelayPacket.SEQ_OFFSET, bytes.size))
         } else {
             val name = String(bytes, RelayPacket.HEADER_SIZE, bytes.size - RelayPacket.HEADER_SIZE, Charsets.UTF_8)
