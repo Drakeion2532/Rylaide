@@ -220,9 +220,23 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private var phoneMicState by mutableStateOf(false)
+    /**
+     * Experimental: listen through the headset but speak into the phone's own mic
+     * (phone in a jacket pocket is shielded from wind). Takes effect at once; if the
+     * phone refuses, the log shows which mic is really in use.
+     */
+    var usePhoneMic: Boolean
+        get() = phoneMicState
+        set(value) {
+            phoneMicState = value
+            if (running) applyRoute()
+            addLog("Mic source: " + if (value) "PHONE mic (headset used for listening only)" else "headset mic")
+        }
+
     private fun applyRoute() {
         val route = runCatching { com.rylaide.app.audio.AudioRoute.valueOf(audioRoute) }.getOrNull() ?: return
-        val (input, output) = routeManager.preferredDevices(route)
+        val (input, output) = routeManager.preferredDevices(route, usePhoneMic)
         engine.setPreferredDevices(input, output)
     }
 
@@ -249,7 +263,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 17, ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 18, mic source option + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

@@ -88,11 +88,17 @@ class AudioRouteManager(context: Context) {
      * The mic and speaker devices to pin the audio streams to for [route], or
      * null to let Android choose.
      */
-    fun preferredDevices(route: AudioRoute): Pair<AudioDeviceInfo?, AudioDeviceInfo?> = when (route) {
-        AudioRoute.WIRED_HEADSET -> wiredInput() to wiredOutput()
-        AudioRoute.BLUETOOTH_HEADSET ->
-            inputs().firstOrNull { isBluetoothCall(it) } to outputs().firstOrNull { isBluetoothCall(it) }
-        AudioRoute.PHONE_SPEAKER -> null to null
+    fun preferredDevices(route: AudioRoute, phoneMic: Boolean = false): Pair<AudioDeviceInfo?, AudioDeviceInfo?> {
+        val builtInMic = inputs().firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+        return when (route) {
+            AudioRoute.WIRED_HEADSET ->
+                (if (phoneMic && builtInMic != null) builtInMic else wiredInput()) to wiredOutput()
+            AudioRoute.BLUETOOTH_HEADSET ->
+                (if (phoneMic && builtInMic != null) builtInMic
+                 else inputs().firstOrNull { isBluetoothCall(it) }) to
+                    outputs().firstOrNull { isBluetoothCall(it) }
+            AudioRoute.PHONE_SPEAKER -> null to null
+        }
     }
 
     /** Switches to the best device right now. Safe to call again whenever devices change. */
