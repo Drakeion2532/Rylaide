@@ -229,7 +229,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
         }
         Text("Riders you can hear: $reachText")
         Text("Estimated delay: about $delayMs ms (your headset adds more: Bluetooth about 100 to 200 ms)")
-        Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops")
+        Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops   ·   voice skipped while link backed up: ${vm.audioDropped}")
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
         Row(

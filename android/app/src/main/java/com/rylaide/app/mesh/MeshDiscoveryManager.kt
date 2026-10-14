@@ -75,6 +75,8 @@ class MeshDiscoveryManager(
         private const val TYPE_PING: Byte = 2
         private const val TYPE_PONG: Byte = 3
         private const val PING_INTERVAL_MS = 2000L
+        private const val CONGESTED_RTT_MS = 1000
+        private const val RECOVERED_RTT_MS = 400
         private const val PRESENCE_INTERVAL_MS = 3000L
         private const val PRESENCE_EXPIRY_MS = 10000L
         private const val RETRY_DELAY_MS = 2000L
@@ -161,7 +163,25 @@ class MeshDiscoveryManager(
         private set
     private val rttWindow = ArrayDeque<Int>()
 
+    /**
+     * True while the link is badly backed up (a check took over 1 s). Nearby delivers
+     * every packet in order, so on a bad link voice piles up and arrives seconds late.
+     * While backed up we stop adding new voice so the pile can drain and the next words
+     * are fresh; it resumes when a check comes back under 0.4 s.
+     */
+    @Volatile var congested: Boolean = false
+        private set
+    @Volatile var audioDropped: Int = 0
+        private set
+
     private fun recordRtt(ms: Int) {
+        if (!congested && ms > CONGESTED_RTT_MS) {
+            congested = true
+            mainHandler.post { listener.onStatus("Link backed up (${ms} ms). Skipping old voice so new words are not late") }
+        } else if (congested && ms < RECOVERED_RTT_MS) {
+            congested = false
+            mainHandler.post { listener.onStatus("Link recovered (${ms} ms)") }
+        }
         synchronized(rttWindow) {
             rttWindow.addLast(ms)
             while (rttWindow.size > 10) rttWindow.removeFirst()
@@ -292,6 +312,7 @@ class MeshDiscoveryManager(
      */
     fun sendAudio(packet: ByteArray) {
         if (connected.isEmpty() || packet.size < 3) return
+        if (congested) { audioDropped++; return }
         val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
         val message = RelayPacket.encode(
             RelayPacket.TYPE_AUDIO, myOrigin, RelayPacket.DEFAULT_TTL, seq,

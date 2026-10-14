@@ -63,6 +63,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             }
         }
     val linkRttMs: Int get() = mesh.linkRttMs
+    val audioDropped: Int get() = mesh.audioDropped
     val linkRttWorstMs: Int get() = mesh.linkRttWorstMs
     private var thresholdState by mutableStateOf(engine.vad.threshold)
     var vadThreshold: Double
@@ -243,7 +244,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 18, ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 19, link backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
