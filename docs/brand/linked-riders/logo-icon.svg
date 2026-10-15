@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs>
+<linearGradient id="ringA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC247"/><stop offset="1" stop-color="#FF7A00"/></linearGradient>
+<linearGradient id="ringB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFA21F"/><stop offset="1" stop-color="#F0540A"/></linearGradient>
+<linearGradient id="teal" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#1FD6C4"/><stop offset="1" stop-color="#3FA9FF"/></linearGradient>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#262B36"/><stop offset="1" stop-color="#0C0E13"/></linearGradient>
+<clipPath id="weave"><circle cx="512" cy="739.0" r="62"/></clipPath>
+</defs><rect width="1024" height="1024" rx="230" fill="url(#bg)"/><g transform="translate(512 512) scale(0.8) translate(-579 -483)"><g fill="none" stroke-linecap="round">
+  <circle cx="404" cy="600" r="176" stroke="url(#ringA)" stroke-width="66"/>
+  <circle cx="620" cy="600" r="176" stroke="url(#ringB)" stroke-width="66"/>
+  <g clip-path="url(#weave)"><circle cx="404" cy="600" r="176" stroke="url(#ringA)" stroke-width="66"/></g>
+  <circle cx="752" cy="392" r="22" fill="url(#teal)" stroke="none"/>
+  <path d="M828.3,375.8 A78,78 0 0 0 768.2,315.7" stroke="url(#teal)" stroke-width="34" stroke-opacity="1"/><path d="M888.9,362.9 A140,140 0 0 0 781.1,255.1" stroke="url(#teal)" stroke-width="34" stroke-opacity="0.85"/><path d="M949.6,350.0 A202,202 0 0 0 794.0,194.4" stroke="url(#teal)" stroke-width="34" stroke-opacity="0.65"/>
+</g></g></svg>
