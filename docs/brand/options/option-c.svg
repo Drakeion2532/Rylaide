@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A1B4A"/><stop offset="1" stop-color="#0B0716"/></linearGradient>
+<linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A3D"/><stop offset="1" stop-color="#C21B5B"/></linearGradient>
+<linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B2D66"/><stop offset="1" stop-color="#15102B"/></linearGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<path d="M256,48 L420,108 V250 C420,345 350,418 256,466 C162,418 92,345 92,250 V108 Z" fill="url(#sh)"/>
+<path d="M256,72 L398,124 V248 C398,330 338,394 256,436 C174,394 114,330 114,248 V124 Z" fill="url(#rd)"/>
+<path d="M206,436 L238,330 H274 L306,436 Z" fill="#2B2150"/>
+<path d="M256,346 V366 M256,386 V410" stroke="#FFD27A" stroke-width="10" stroke-linecap="round"/>
+<path d="M170,150 H300 A44,44 0 0 1 300,238 H170 Z" fill="none"/>
+<text x="256" y="300" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="150" fill="#fff" letter-spacing="-4">R</text>
+<g fill="none" stroke="#FFD27A" stroke-width="9" stroke-linecap="round"><path d="M170,215 A52,52 0 0 0 170,150" opacity=".9"/><path d="M342,215 A52,52 0 0 0 342,150" opacity="0"/><path d="M342,150 A52,52 0 0 1 342,215" opacity=".9"/><path d="M140,235 A90,90 0 0 0 140,130" opacity=".5"/><path d="M372,130 A90,90 0 0 1 372,235" opacity=".5"/></g>
+</svg>
