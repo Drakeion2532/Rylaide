@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B1F2A"/><stop offset="1" stop-color="#0A0C11"/></linearGradient>
+<linearGradient id="shell" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF7A18"/><stop offset="1" stop-color="#E02D3C"/></linearGradient>
+<linearGradient id="visor" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FE7FF"/><stop offset="1" stop-color="#1B6FD1"/></linearGradient>
+</defs>
+
+<g transform="translate(20,75) scale(.82)">
+<path d="M110,310 C100,190 190,105 295,105 C385,105 440,170 440,255 L440,325 C440,352 420,372 392,372 L200,372 C145,372 112,345 110,310 Z" fill="url(#shell)" stroke="#0B0D12" stroke-width="10" stroke-linejoin="round"/>
+<path d="M262,192 H405 C424,192 438,206 438,226 V262 H296 C268,262 250,232 262,192 Z" fill="url(#visor)"/>
+<path d="M285,205 L335,205 L305,252 L275,252 Z" fill="#fff" opacity=".35"/>
+<path d="M150,330 H300" stroke="#0A0C11" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+<path d="M150,350 H280" stroke="#0A0C11" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+<path d="M205,150 C250,120 300,118 345,140" stroke="#FFD2A6" stroke-width="10" fill="none" stroke-linecap="round" opacity=".7"/>
+</g>
+<g transform="translate(40,10)" fill="none" stroke="#7FE7FF" stroke-linecap="round">
+<path d="M395,225 A46,46 0 0 1 395,290" stroke-width="12"/>
+<path d="M425,195 A84,84 0 0 1 425,320" stroke-width="12" opacity=".55"/>
+</g>
+</svg>
