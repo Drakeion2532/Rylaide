@@ -5,6 +5,11 @@ import android.Manifest
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.location.Location
+import android.location.LocationManager
+import androidx.core.location.LocationListenerCompat
+import com.rylaide.app.mesh.GeoMath
+import com.rylaide.app.mesh.Position
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import android.media.AudioDeviceCallback
@@ -78,6 +83,78 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     }
 
     val internetUp: Boolean get() = mesh.internetUp
+
+    // ---- Distance between riders (GPS) ----
+
+    var distanceLine by mutableStateOf("Distance to riders: waiting for GPS…")
+        private set
+    var farthestLine by mutableStateOf("")
+        private set
+    private var farthestLinkedM = 0.0
+    private var lastFix: Location? = null
+
+    private val locationListener = object : LocationListenerCompat {
+        override fun onLocationChanged(location: Location) {
+            // A GPS fix is better than a network one: keep a network fix only if it is clearly sharper.
+            val old = lastFix
+            if (old != null && location.provider != LocationManager.GPS_PROVIDER &&
+                old.provider == LocationManager.GPS_PROVIDER &&
+                System.currentTimeMillis() - old.time < 5000 && location.accuracy > old.accuracy
+            ) return
+            lastFix = location
+            mesh.updateMyPosition(Position(location.latitude, location.longitude, location.accuracy.toInt()))
+        }
+    }
+    private var locationOn = false
+
+    private fun startLocation() {
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            distanceLine = "Distance to riders: needs the Location permission"
+            return
+        }
+        try {
+            val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+                if (lm.isProviderEnabled(provider)) {
+                    lm.requestLocationUpdates(provider, 1000L, 0f, locationListener, Looper.getMainLooper())
+                    locationOn = true
+                }
+            }
+            if (!locationOn) distanceLine = "Distance to riders: turn the phone Location switch on"
+        } catch (t: Throwable) {
+            addLog("GPS could not start: ${t.message}")
+        }
+    }
+
+    private fun stopLocation() {
+        if (!locationOn) return
+        try {
+            (getApplication<Application>().getSystemService(Context.LOCATION_SERVICE) as LocationManager)
+                .removeUpdates(locationListener)
+        } catch (_: Throwable) { }
+        locationOn = false
+        lastFix = null
+    }
+
+    /** Called twice a second by the screen. Updates the distance lines and the farthest-with-voice record. */
+    fun refreshDistance() {
+        val fix = lastFix
+        val list = mesh.distances
+        distanceLine = when {
+            !running -> "Distance to riders: start first"
+            fix == null -> "Distance to riders: waiting for this phone's GPS…"
+            list.isEmpty() -> "Distance to riders: no GPS heard from other riders yet (this phone ±${fix.accuracy.toInt()} m)"
+            else -> "Distance to riders: " + list.joinToString(" · ") {
+                "${it.name} ${GeoMath.format(it.meters)} (±${it.accuracyM} m, ${it.ageSec} s ago)"
+            }
+        }
+        if (mesh.connectedCount() > 0 && list.isNotEmpty() && !mesh.congested) {
+            val d = list.maxOf { it.meters }
+            if (d > farthestLinkedM) farthestLinkedM = d
+        }
+        farthestLine = if (farthestLinkedM > 0) "Farthest distance while linked: ${GeoMath.format(farthestLinkedM)}" else ""
+    }
     val playedText: String get() = "Voice played from: internet ${mesh.playedViaInternet} · offline link ${mesh.playedViaNearby}"
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -276,6 +353,8 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             addLog("Ride service could not start: ${t.message}")
         }
         running = true
+        farthestLinkedM = 0.0
+        startLocation()
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
         addLog("Started. Audio route: $audioRoute")
@@ -303,6 +382,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         micOpen = false
         engine.stop()
         mesh.stop()
+        stopLocation()
         if (networkCallbackSet) {
             try {
                 (getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)

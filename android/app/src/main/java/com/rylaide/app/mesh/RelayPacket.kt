@@ -4,7 +4,7 @@ package com.rylaide.app.mesh
  * The wire format for messages that can be passed on from rider to rider.
  *
  * ```
- * byte 0      type (AUDIO or PRESENCE)
+ * byte 0      type (AUDIO, PRESENCE or POSITION)
  * bytes 1-4   origin: who first made this message (a number picked per Start)
  * byte 5      hops left: starts at DEFAULT_TTL, each phone that passes it on lowers it
  * bytes 6-7   sequence number, counts up per origin and per type
@@ -17,6 +17,7 @@ package com.rylaide.app.mesh
 object RelayPacket {
     const val TYPE_AUDIO: Byte = 4
     const val TYPE_PRESENCE: Byte = 5
+    const val TYPE_POSITION: Byte = 6
 
     /** How many phones a message may pass through. 4 covers a line of five riders. */
     const val DEFAULT_TTL = 4
@@ -45,7 +46,7 @@ object RelayPacket {
     fun parse(bytes: ByteArray): Parsed? {
         if (bytes.size < HEADER_SIZE) return null
         val type = bytes[0]
-        if (type != TYPE_AUDIO && type != TYPE_PRESENCE) return null
+        if (type != TYPE_AUDIO && type != TYPE_PRESENCE && type != TYPE_POSITION) return null
         val origin = ((bytes[1].toInt() and 0xFF) shl 24) or
             ((bytes[2].toInt() and 0xFF) shl 16) or
             ((bytes[3].toInt() and 0xFF) shl 8) or

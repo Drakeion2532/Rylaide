@@ -146,6 +146,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             drops = vm.linkDrops
             reachText = vm.reachableText
             vm.checkMicBlocked()
+            vm.refreshDistance()
             micBlocked = vm.micBlocked
             internetUp = vm.internetUp
             delayMs = vm.estimatedDelayMs
@@ -236,6 +237,8 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 else -> "not connected (offline link still works)"
             }
         )
+        Text(vm.distanceLine)
+        if (vm.farthestLine.isNotEmpty()) Text(vm.farthestLine)
         Text("Riders you can hear: $reachText")
         Text(vm.playedText)
         Text("Estimated delay: about $delayMs ms (your headset adds more: Bluetooth about 100 to 200 ms)")

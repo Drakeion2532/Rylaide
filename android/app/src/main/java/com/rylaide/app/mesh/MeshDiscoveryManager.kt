@@ -79,6 +79,8 @@ class MeshDiscoveryManager(
         private const val PING_INTERVAL_MS = 2000L
         private const val CONGESTED_RTT_MS = 1000
         private const val RECOVERED_RTT_MS = 400
+        private const val POSITION_INTERVAL_MS = 2000L
+        private const val POSITION_EXPIRY_MS = 30_000L
         private const val PRESENCE_INTERVAL_MS = 3000L
         private const val PRESENCE_EXPIRY_MS = 10000L
         private const val RETRY_DELAY_MS = 2000L
@@ -121,6 +123,66 @@ class MeshDiscoveryManager(
         }
 
     private fun originKey(origin: Int): String = Integer.toHexString(origin)
+
+    // ---- Where riders are (for distance readouts while testing) ----
+
+    @Volatile private var myPosition: Position? = null
+    private var myPositionAtMs = 0L
+    private var positionSeq = 0
+
+    private class SeenPosition(val pos: Position, val atMs: Long)
+    private val positions = ConcurrentHashMap<Int, SeenPosition>()
+
+    /** How far a rider is from us right now, from both phones' GPS. */
+    data class RiderDistance(val name: String, val meters: Double, val accuracyM: Int, val ageSec: Int)
+
+    /** Called by the app whenever the phone has a new GPS fix. */
+    fun updateMyPosition(p: Position) {
+        myPosition = p
+        myPositionAtMs = System.currentTimeMillis()
+    }
+
+    /** Distance to every rider whose position we have heard in the last 30 s, nearest first. */
+    val distances: List<RiderDistance>
+        get() {
+            val me = myPosition ?: return emptyList()
+            val now = System.currentTimeMillis()
+            return positions.entries.mapNotNull { (origin, seen) ->
+                val age = now - seen.atMs
+                if (age > POSITION_EXPIRY_MS) return@mapNotNull null
+                val name = reach[origin]?.name ?: "Rider " + originKey(origin).takeLast(4)
+                RiderDistance(
+                    name, GeoMath.distanceMeters(me, seen.pos),
+                    me.accuracyM + seen.pos.accuracyM, (age / 1000).toInt()
+                )
+            }.sortedBy { it.meters }
+        }
+
+    private fun distanceToText(origin: Int): String {
+        val me = myPosition ?: return "distance unknown (no GPS fix on this phone)"
+        val seen = positions[origin] ?: return "distance unknown (no GPS from them)"
+        val age = ((System.currentTimeMillis() - seen.atMs) / 1000).toInt()
+        return "about ${GeoMath.format(GeoMath.distanceMeters(me, seen.pos))}, GPS position ${age} s old"
+    }
+
+    private val positionTick = object : Runnable {
+        override fun run() {
+            if (!running) return
+            val me = myPosition
+            if (me != null && System.currentTimeMillis() - myPositionAtMs < POSITION_EXPIRY_MS &&
+                (connected.isNotEmpty() || internet.up)
+            ) {
+                val msg = RelayPacket.encode(
+                    RelayPacket.TYPE_POSITION, myOrigin, RelayPacket.DEFAULT_TTL,
+                    positionSeq, PositionCodec.encode(me)
+                )
+                positionSeq = (positionSeq + 1) and 0xFFFF
+                if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+                internet.send(msg)
+            }
+            mainHandler.postDelayed(this, POSITION_INTERVAL_MS)
+        }
+    }
 
     private val presenceTick = object : Runnable {
         override fun run() {
@@ -255,6 +317,9 @@ class MeshDiscoveryManager(
         mainHandler.postDelayed(watchdog, WATCHDOG_MS)
         mainHandler.postDelayed(pinger, PING_INTERVAL_MS)
         mainHandler.postDelayed(presenceTick, PRESENCE_INTERVAL_MS)
+        mainHandler.postDelayed(positionTick, POSITION_INTERVAL_MS)
+        positions.clear()
+        positionSeq = 0
         synchronized(rttWindow) { rttWindow.clear() }
         linkRttMs = -1
         linkRttWorstMs = -1
@@ -280,7 +345,7 @@ class MeshDiscoveryManager(
 
         override fun onInternetMessage(bytes: ByteArray) {
             mainHandler.post { if (running && bytes.size >= 4) when (bytes[0]) {
-                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE -> handleRelayed(INTERNET, bytes)
+                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE, RelayPacket.TYPE_POSITION -> handleRelayed(INTERNET, bytes)
             } }
         }
     })
@@ -494,10 +559,13 @@ class MeshDiscoveryManager(
         }
 
         override fun onDisconnected(endpointId: String) {
-            if (connected.remove(endpointId) != null) drops++
+            val wasConnected = connected.remove(endpointId) != null
+            if (wasConnected) drops++
             pending.remove(endpointId)
             notifyPeers()
-            listener.onStatus("A rider went out of range. Reconnecting…")
+            val remoteId = discovered[endpointId]
+            val where = if (wasConnected && remoteId != null) " Distance then: " + distanceToText(remoteId.hashCode()) + "." else ""
+            listener.onStatus("A rider went out of range. Reconnecting…$where")
             // If they are still around, try again. Discovery stays on, so if
             // they come back later it will find them again by itself.
             if (running && discovered.containsKey(endpointId)) {
@@ -512,7 +580,7 @@ class MeshDiscoveryManager(
             val bytes = payload.asBytes() ?: return
             if (bytes.size < 4) return
             when (bytes[0]) {
-                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE -> handleRelayed(endpointId, bytes)
+                RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE, RelayPacket.TYPE_POSITION -> handleRelayed(endpointId, bytes)
                 TYPE_PING -> {
                     val pong = bytes.copyOf()
                     pong[0] = TYPE_PONG
@@ -553,6 +621,10 @@ class MeshDiscoveryManager(
         if (p.type == RelayPacket.TYPE_AUDIO) {
             if (fromInternet) playedViaInternet++ else playedViaNearby++
             listener.onAudioFrame(originKey(p.origin), bytes.copyOfRange(RelayPacket.SEQ_OFFSET, bytes.size))
+        } else if (p.type == RelayPacket.TYPE_POSITION) {
+            PositionCodec.decode(bytes, RelayPacket.HEADER_SIZE)?.let {
+                positions[p.origin] = SeenPosition(it, System.currentTimeMillis())
+            }
         } else {
             val name = String(bytes, RelayPacket.HEADER_SIZE, bytes.size - RelayPacket.HEADER_SIZE, Charsets.UTF_8)
             reach[p.origin] = ReachEntry(name, RelayPacket.hopsTravelled(p.ttl), System.currentTimeMillis())
