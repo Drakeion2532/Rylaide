@@ -22,19 +22,16 @@ import java.util.concurrent.TimeUnit
  * is gone the offline link simply carries on alone.
  */
 class InternetLink(
-    private val listener: Listener,
+    private val listener: InternetPath.Listener,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .pingInterval(10, TimeUnit.SECONDS)
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
-) {
-    interface Listener {
-        fun onInternetState(up: Boolean)
-        fun onInternetMessage(bytes: ByteArray)
-    }
+) : InternetPath {
+    interface Listener : InternetPath.Listener
 
-    @Volatile var up: Boolean = false
+    @Volatile override var up: Boolean = false
         private set
 
     private val lock = Any()
@@ -47,7 +44,7 @@ class InternetLink(
     }
 
     /** [serverUrl] like wss://relay.example.workers.dev, [room] the group code. */
-    fun start(serverUrl: String, room: String) {
+    override fun start(serverUrl: String, room: String) {
         val base = serverUrl.trim().trimEnd('/')
         if (base.isEmpty()) return
         synchronized(lock) {
@@ -58,7 +55,7 @@ class InternetLink(
         open()
     }
 
-    fun stop() {
+    override fun stop() {
         synchronized(lock) {
             wanted = false
             socket?.cancel()
@@ -68,7 +65,7 @@ class InternetLink(
     }
 
     /** Call when the phone's network changed: skip the wait and reconnect now. */
-    fun reconnectNow() {
+    override fun reconnectNow() {
         synchronized(lock) {
             if (!wanted) return
             backoffMs = FIRST_RETRY_MS
@@ -77,7 +74,7 @@ class InternetLink(
     }
 
     /** Sends a packet. False if the internet path is down (the offline path is unaffected). */
-    fun send(bytes: ByteArray): Boolean {
+    override fun send(bytes: ByteArray): Boolean {
         val s = synchronized(lock) { socket } ?: return false
         if (!up) return false
         return s.send(bytes.toByteString())

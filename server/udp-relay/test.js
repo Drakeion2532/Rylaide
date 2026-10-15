@@ -1,0 +1,22 @@
+const assert = require('assert');
+const dgram = require('dgram');
+const { createRelay } = require('./server');
+const client = () => new Promise((res) => { const s = dgram.createSocket('udp4'); s.bind(0, () => res(s)); });
+const room = (name) => Buffer.concat([Buffer.from([name.length]), Buffer.from(name)]);
+const once = (s) => new Promise((r) => s.once('message', (m) => r(m)));
+(async () => {
+  const relay = await createRelay(0);
+  const [a, b, c] = [await client(), await client(), await client()];
+  const send = (s, type, name, data) => s.send(Buffer.concat([Buffer.from([type]), room(name), data || Buffer.alloc(0)]), relay.port, '127.0.0.1');
+  let ack = once(a); send(a, 1, 'TEST'); assert.deepStrictEqual([...(await ack)], [3]);
+  send(b, 1, 'TEST'); send(c, 1, 'OTHER'); await once(b);
+  await new Promise((r) => setTimeout(r, 50));
+  let leaked = false, echoed = false; c.on('message', () => { leaked = true; }); a.on('message', () => { echoed = true; });
+  const got = once(b); send(a, 2, 'TEST', Buffer.from([4, 9, 8, 7]));
+  assert.deepStrictEqual([...(await got)], [2, 4, 9, 8, 7]);
+  await new Promise((r) => setTimeout(r, 150));
+  assert.ok(!leaked, 'other room heard it'); assert.ok(!echoed, 'sender heard itself');
+  send(a, 2, 'bad room!', Buffer.from([1])); await new Promise((r) => setTimeout(r, 100));
+  [a, b, c].forEach((s) => s.close()); relay.close();
+  console.log('udp relay tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });

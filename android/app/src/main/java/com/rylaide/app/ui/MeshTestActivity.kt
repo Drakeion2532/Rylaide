@@ -292,7 +292,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
         OutlinedTextField(
             value = vm.relayUrl,
             onValueChange = { vm.updateRelayUrl(it) },
-            label = { Text("Relay server (optional, for the internet path). Stop and Start after changing") },
+            label = { Text("Relay server: udp://host:port (fastest) or wss://… . Stop and Start after changing") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )

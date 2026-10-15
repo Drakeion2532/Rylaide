@@ -327,8 +327,10 @@ class MeshDiscoveryManager(
         playedViaInternet = 0
         playedViaNearby = 0
         if (relayServerUrl.isNotBlank()) {
+            val udp = relayServerUrl.trim().startsWith("udp://")
+            internet = if (udp) UdpLink(internetListener) else InternetLink(internetListener)
             internet.start(relayServerUrl, this.groupCode)
-            listener.onStatus("Internet path: connecting to the relay server…")
+            listener.onStatus("Internet path: connecting to the relay server (" + (if (udp) "UDP, fastest" else "WebSocket") + ")…")
         } else {
             listener.onStatus("Internet path: off (no relay server set). Offline link only.")
         }
@@ -336,7 +338,7 @@ class MeshDiscoveryManager(
 
     // ---- Internet path (second road next to the offline link) ----
 
-    private val internet = InternetLink(object : InternetLink.Listener {
+    private val internetListener = object : InternetLink.Listener {
         override fun onInternetState(up: Boolean) {
             mainHandler.post {
                 if (running) listener.onStatus(if (up) "Internet path: connected" else "Internet path: down, offline link carries on")
@@ -348,7 +350,10 @@ class MeshDiscoveryManager(
                 RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE, RelayPacket.TYPE_POSITION -> handleRelayed(INTERNET, bytes)
             } }
         }
-    })
+    }
+
+    // WebSocket by default; plain UDP when the address starts with udp:// (fastest).
+    @Volatile private var internet: InternetPath = InternetLink(internetListener)
 
     /** Voice packets that were played from the internet copy / the offline copy (whichever arrived first). */
     @Volatile var playedViaInternet: Int = 0
