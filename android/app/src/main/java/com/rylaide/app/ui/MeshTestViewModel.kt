@@ -235,12 +235,31 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         }
 
     /** True while the phone is giving the app a silent mic. */
-    val micBlocked: Boolean get() = engine.micBlocked
+    var micBlocked by mutableStateOf(false)
+        private set
     private var lastMicBlocked = false
+
+    /**
+     * Asks Android directly whether it is silencing our mic (Android 10 and newer). That is the
+     * real signal. A run of zero samples is not: the phone's noise filter can give exact zeros
+     * in a quiet room, which falsely looked like a blocked mic in Build 20.
+     */
+    private fun isMicSilencedByAndroid(): Boolean {
+        if (!running) return false
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            return try {
+                val am = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val id = engine.recorderSessionId
+                am.activeRecordingConfigurations.any { it.clientAudioSessionId == id && it.isClientSilenced }
+            } catch (_: Throwable) { false }
+        }
+        return engine.micBlocked
+    }
 
     /** Called twice a second by the screen: logs when the mic gets blocked or comes back. */
     fun checkMicBlocked() {
-        val now = engine.micBlocked
+        val now = isMicSilencedByAndroid()
+        micBlocked = now
         if (now != lastMicBlocked) {
             lastMicBlocked = now
             addLog(

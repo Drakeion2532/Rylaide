@@ -29,6 +29,8 @@ class IntercomAudioEngine(
     companion object {
         const val SAMPLE_RATE = 16000
         const val FRAME_SAMPLES = 320 // 20 ms at 16 kHz
+        /** Only a very long run of exact zeros counts as a blocked mic on old phones: the phone's own noise filter can output digital silence in a quiet room. */
+        const val SILENT_FALLBACK_FRAMES = 500
         private const val PLAYBACK_BUFFER_FRAMES = 3 // 60 ms
         private const val PRE_ROLL_FRAMES = 4 // 80 ms of audio before speech starts
     }
@@ -71,6 +73,9 @@ class IntercomAudioEngine(
      * about a second). Android does this when the app is in the background without a
      * foreground service, or when a system privacy switch is off.
      */
+    /** The audio session id of the mic we opened, 0 when not running. */
+    val recorderSessionId: Int get() = recorder?.audioSessionId ?: 0
+
     @Volatile var micBlocked: Boolean = false
         private set
     private var zeroFrames = 0
@@ -263,7 +268,7 @@ class IntercomAudioEngine(
             var allZero = true
             for (v in buffer) if (v.toInt() != 0) { allZero = false; break }
             zeroFrames = if (allZero) zeroFrames + 1 else 0
-            micBlocked = zeroFrames >= 50
+            micBlocked = zeroFrames >= SILENT_FALLBACK_FRAMES
             // Always read so the recorder never backs up. Remove wind rumble,
             // then only send when the mic is open and the chunk looks like speech.
             highPass.process(buffer)
