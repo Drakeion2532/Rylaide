@@ -3,13 +3,14 @@ package com.rylaide.app.mesh
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** feed() also calls evaluate() every step, like the app will once a second. */
 class PathHealthTest {
     private var t = 0L
     private val h = PathHealth { t }
 
     private fun feed(seconds: Int, everyMs: Long = 100, rtt: Int = 80) {
         val end = t + seconds * 1000L
-        while (t < end) { t += everyMs; h.onPacketReceived(); h.onRtt(rtt) }
+        while (t < end) { t += everyMs; h.onPacketReceived(); h.onRtt(rtt); h.evaluate() }
     }
 
     @Test fun downUntilLinkIsUp() { assertEquals(PathState.DOWN, h.evaluate()) }
