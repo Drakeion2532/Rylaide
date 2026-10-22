@@ -156,6 +156,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         farthestLine = if (farthestLinkedM > 0) "Farthest distance while linked: ${GeoMath.format(farthestLinkedM)}" else ""
     }
     val playedText: String get() = "Voice played from: internet ${mesh.playedViaInternet} · offline link ${mesh.playedViaNearby}"
+    val sessionText: String get() = "Session: ${mesh.sessionState} (offline link ${mesh.offlinePathState}, internet ${mesh.internetPathState})"
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) { mesh.internetReconnect() }
@@ -380,7 +381,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 20, internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 21, session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

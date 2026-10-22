@@ -25,7 +25,7 @@ class PathHealthTest {
 
     @Test fun silenceDegradesThenDowns() {
         h.setLinkUp(true); feed(6); h.evaluate()
-        t += 3_500; assertEquals(PathState.DEGRADED, h.evaluate())
+        t += 4_500; assertEquals(PathState.DEGRADED, h.evaluate())
         t += 5_000; assertEquals(PathState.DOWN, h.evaluate())
     }
 

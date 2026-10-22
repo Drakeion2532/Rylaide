@@ -77,6 +77,7 @@ class MeshDiscoveryManager(
         private const val TYPE_PING: Byte = 2
         private const val TYPE_PONG: Byte = 3
         private const val PING_INTERVAL_MS = 2000L
+        private const val HEALTH_INTERVAL_MS = 1000L
         private const val CONGESTED_RTT_MS = 1000
         private const val RECOVERED_RTT_MS = 400
         private const val POSITION_INTERVAL_MS = 2000L
@@ -240,6 +241,7 @@ class MeshDiscoveryManager(
         private set
 
     private fun recordRtt(ms: Int) {
+        offlineHealth.onRtt(ms)
         if (!congested && ms > CONGESTED_RTT_MS) {
             congested = true
             mainHandler.post { listener.onStatus("Link backed up (${ms} ms). Skipping old voice so new words are not late") }
@@ -252,6 +254,37 @@ class MeshDiscoveryManager(
             while (rttWindow.size > 10) rttWindow.removeFirst()
             linkRttMs = rttWindow.average().toInt()
             linkRttWorstMs = rttWindow.maxOrNull() ?: -1
+        }
+    }
+
+    // ---- Health of each road and the one state the rider sees ----
+    private val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() }
+    private var offlineHealth = PathHealth(clockMs)
+    private var internetHealth = PathHealth(clockMs)
+    private var stateMachine = SessionStateMachine(clockMs)
+
+    @Volatile var sessionState: SessionState = SessionState.CONNECTING
+        private set
+    @Volatile var offlinePathState: PathState = PathState.DOWN
+        private set
+    @Volatile var internetPathState: PathState = PathState.DOWN
+        private set
+
+    private val healthTick = object : Runnable {
+        override fun run() {
+            if (!running) return
+            offlineHealth.setLinkUp(connected.isNotEmpty())
+            val netUp = internet.up
+            internetHealth.setLinkUp(netUp)
+            if (netUp) internetHealth.onLinkAlive()
+            offlinePathState = offlineHealth.evaluate()
+            internetPathState = internetHealth.evaluate()
+            val before = sessionState
+            sessionState = stateMachine.update(offlinePathState, internetPathState)
+            if (sessionState != before) {
+                listener.onStatus("${stamp()} Session: $before -> $sessionState (offline $offlinePathState, internet $internetPathState)")
+            }
+            mainHandler.postDelayed(this, HEALTH_INTERVAL_MS)
         }
     }
 
@@ -315,6 +348,11 @@ class MeshDiscoveryManager(
         startAdvertising()
         startDiscovery()
         mainHandler.postDelayed(watchdog, WATCHDOG_MS)
+        offlineHealth = PathHealth(clockMs)
+        internetHealth = PathHealth(clockMs)
+        stateMachine = SessionStateMachine(clockMs)
+        sessionState = SessionState.CONNECTING
+        mainHandler.postDelayed(healthTick, HEALTH_INTERVAL_MS)
         mainHandler.postDelayed(pinger, PING_INTERVAL_MS)
         mainHandler.postDelayed(presenceTick, PRESENCE_INTERVAL_MS)
         mainHandler.postDelayed(positionTick, POSITION_INTERVAL_MS)
@@ -584,6 +622,7 @@ class MeshDiscoveryManager(
             if (payload.type != Payload.Type.BYTES) return
             val bytes = payload.asBytes() ?: return
             if (bytes.size < 4) return
+            offlineHealth.onPacketReceived()
             when (bytes[0]) {
                 RelayPacket.TYPE_AUDIO, RelayPacket.TYPE_PRESENCE, RelayPacket.TYPE_POSITION -> handleRelayed(endpointId, bytes)
                 TYPE_PING -> {
