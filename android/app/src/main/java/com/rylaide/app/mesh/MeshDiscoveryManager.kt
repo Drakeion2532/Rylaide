@@ -465,20 +465,25 @@ class MeshDiscoveryManager(
      */
     fun sendAudio(packet: ByteArray) {
         if (packet.size < 3) return
-        val viaInternet = internet.up
-        val viaNearby = connected.isNotEmpty() && !congested
-        if (!viaInternet && !viaNearby) {
-            if (connected.isNotEmpty()) audioDropped++
-            return
-        }
         val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
         val message = RelayPacket.encode(
             RelayPacket.TYPE_AUDIO, myOrigin, RelayPacket.DEFAULT_TTL, seq,
             packet.copyOfRange(2, packet.size)
         )
-        if (viaNearby) client.sendPayload(connected.keys.toList(), Payload.fromBytes(message))
-        if (viaInternet) internet.send(message)
+        if (transports.send(message, Priority.VOICE) == 0 && connected.isNotEmpty()) audioDropped++
     }
+
+    // The roads a packet can take; voice goes on every usable one.
+    private val transports = TransportManager(
+        listOf(
+            NearbyTransport(
+                hasPeers = { connected.isNotEmpty() },
+                backedUp = { congested },
+                sender = { client.sendPayload(connected.keys.toList(), Payload.fromBytes(it)) }
+            ),
+            InternetTransport({ internet })
+        )
+    )
 
     private fun startAdvertising() {
         val builder = AdvertisingOptions.Builder().setStrategy(strategy)
