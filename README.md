@@ -68,9 +68,7 @@ docs/          Product brief, technical notes and design mockups
 
 Legend: ✅ done and tested · 🟡 built, needs testing on phones · 🔵 partly built · ⬜ planned
 
-**Overall:** 3 of 17 steps done and tested, 3 built and waiting for phone tests, 4 partly built, 7 not started.
-
-`✅✅✅🟡🟡🔵🔵⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜` (steps 1 to 3b in order of build)
+**Overall (19 rows):** 3 done and tested, 2 built and waiting for phone tests, 4 partly built, 10 not started.
 
 The full plan, with models, free-tier limits, store checklist and risks, is in
 [`docs/build-plan.md`](docs/build-plan.md).
