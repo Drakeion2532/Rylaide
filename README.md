@@ -8,9 +8,9 @@ with **no internet** when riders are close together. Around that intercom sit th
 things a rider actually needs: navigation, trip tracking, a pre-ride checklist,
 a fuel log, group rides and safety tools.
 
-> **Status: early development (Step 2).** The design is complete in Figma.
-> The app is being built step by step, starting with the offline intercom.
-> Nothing here is ready to install or ride with yet.
+> **Status: early development.** The offline intercom works on test phones and
+> the app is being built step by step. It is a test build, not ready for real
+> rides or the Play Store yet.
 
 ## What it will do
 
@@ -57,25 +57,31 @@ docs/          Product brief, technical notes and design mockups
 The full plan, with models, free-tier limits, store checklist and risks, is in
 [`docs/build-plan.md`](docs/build-plan.md).
 
-| Step | What | State |
-|---|---|---|
-| 0 | Project scaffold, theme, Home and in-ride screens | Done (placeholder UI) |
-| 1 | Offline intercom: two phones talk with no internet | Tested on 2 phones: worked past 200 m, voice choppy, slow to connect |
-| 2 | Better voice: Opus, jitter buffer, mixing, faster connection | Tested outdoors on phones: connects in about 1 s, no lost packets, wired and Bluetooth switch automatically. Wind and fan noise reducer (build 11) is new and still being tested |
-| 3 | Background ride service, headset routing, noise test | Planned |
-| 4 | Foundation: API 36, Figma design tokens, themes, Glove Mode | Planned |
-| 5 | Accounts and onboarding | Planned |
-| 6 | Garage, fuel log, pre-ride checklist | Planned |
-| 7 | Maps and solo rides | Planned |
-| 8 | Navigation | Planned |
-| 9 | Groups | Planned |
-| 10 | Online voice fallback | Planned |
-| 11 | Safety and SOS | Planned |
-| 12 | Voice assistant | Planned |
-| 13 | Settings and languages | Planned |
-| 14 | Hardening, security, privacy | Planned |
-| 15 | Testing with real riders | Planned |
-| 16 | Closed test and Play Store release | Planned |
+Legend: ✅ done · 🟡 built, needs testing on phones · 🔵 partly built · ⬜ planned
+
+| # | Step | Status | Where it stands |
+|---|---|---|---|
+| 0 | Scaffold, theme, Home and in-ride screens | ✅ | Placeholder screens only. The app still opens to the test screen |
+| 1 | Offline intercom: two phones, no internet | ✅ | Worked past 200 m on two phones |
+| 2 | Better voice: Opus, jitter buffer, mixing, fast connect | ✅ | Connects in about 1 s, no lost packets outdoors, wired and Bluetooth switch automatically |
+| 3 | Background ride service, headset routing, noise test | 🟡 | Ride service, auto headset switching, mic-blocked alert and noise levels are in. Needs a long real ride, and a Bluetooth headset test |
+| 3b | Internet path, GPS distance, session state | 🟡 | UDP and WebSocket relay code, rider distances, Session state line and the transport layer are in (Build 22). No relay is deployed yet, so the internet path has never run on phones |
+| 3c | Encryption and authenticated riders | 🔵 | Packet encryption is built and unit-tested (SessionCrypto). Not wired into the app yet |
+| 4 | Foundation: API 36, design tokens, themes, Glove Mode | 🔵 | Themes and Glove Mode exist on the placeholder screens. API 36 target still to do |
+| 5 | Accounts and onboarding | ⬜ | |
+| 6 | Garage, fuel log, pre-ride checklist | ⬜ | |
+| 7 | Maps and solo rides | ⬜ | |
+| 8 | Navigation | ⬜ | |
+| 9 | Groups | ⬜ | |
+| 10 | Online voice fallback | 🔵 | Same work as 3b: the relay code exists, deployment and testing remain |
+| 11 | Safety and SOS | ⬜ | |
+| 12 | Voice assistant | ⬜ | |
+| 13 | Settings and languages | ⬜ | |
+| 14 | Hardening, security, privacy | 🔵 | Encryption built (see 3c). Relay and Nearby authentication still to do |
+| 15 | Testing with real riders | ⬜ | |
+| 16 | Closed test and Play Store release | ⬜ | |
+
+Voice is tap to talk, tap to mute (not hold to talk).
 
 Every push to `main` runs an automatic Android build (see
 `.github/workflows/android-build.yml`), so compile errors show up straight away.
@@ -89,6 +95,21 @@ Every push to `main` runs an automatic Android build (see
 5. Tap the mic button on one phone and talk.
 
 More detail is in [`android/SPRINT1.md`](android/SPRINT1.md).
+
+## About
+
+Rylaide is built by **Shubhan Punde**, a rider who wanted to talk to the people
+he rides with using the phone and headset already in his pocket, without paying
+for intercom hardware or an app subscription.
+
+Principles the project follows:
+
+- **Free for riders.** Running costs stay at zero apart from the one-time
+  Google Play developer fee.
+- **Honest about limits.** No "zero delay", no "unlimited range", no claim that
+  wind noise is fully removed. Real measurements go in the docs.
+- **Built in small steps.** Every piece is pushed to GitHub and built
+  automatically, and tested on real phones before the next one starts.
 
 ## Contact and feedback
 
