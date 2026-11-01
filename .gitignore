@@ -25,3 +25,21 @@ Thumbs.db
 # Secrets - never commit these
 .env
 *.pem
+
+# More secrets and private config - never commit these
+.env.*
+*.key
+*.p12
+*.pfx
+*.p8
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+firebase-adminsdk*.json
+keystore.properties
+signing.properties
+secrets.properties
+**/wrangler.toml.local
+.dev.vars
+*.tfstate
+*.log
