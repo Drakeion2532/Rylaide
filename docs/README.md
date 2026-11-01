@@ -1,14 +1,13 @@
 # Docs
 
-Product and design notes for Rylaide.
+Public technical and design notes for Rylaide. Business plans, product briefs and security audits are kept private, outside this repo.
 
 | File | What it is |
 |---|---|
-| [project-brief.md](project-brief.md) | One-page pitch |
-| [full-app-brief.md](full-app-brief.md) | Complete product brief and screen flow |
 | [technical-deep-dive.md](technical-deep-dive.md) | How the intercom and offline link work |
-| [master-document.md](master-document.md) | Everything merged, with open decisions flagged |
-| [blip-integration-roadmap.md](blip-integration-roadmap.md) | Plan for porting navigation ideas from an earlier app |
+| [build-plan.md](build-plan.md) | Plan, free-tier limits, store checklist, risks |
+| [phase2-architecture.md](phase2-architecture.md) | How voice transports, states and encryption fit together |
+| [security-and-privacy.md](security-and-privacy.md) | What must never be public, and where secrets live |
 | [mockups/](mockups) | Early HTML mockups (open in a browser) |
 
 **Note:** these were written while the plan was still forming. Where they

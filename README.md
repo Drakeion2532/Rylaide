@@ -154,6 +154,9 @@ Principles the project follows:
 The project was previously called Relaide, so some older links and addresses
 still use that name.
 
-## License
+## License and use
 
-No license has been chosen yet, so all rights are reserved for now.
+No license has been chosen yet, so all rights are reserved (see [NOTICE](NOTICE)).
+The code, name, logo and documents may not be copied, redistributed or used to train
+AI or machine-learning models without written permission. Security and privacy rules:
+[`docs/security-and-privacy.md`](docs/security-and-privacy.md).

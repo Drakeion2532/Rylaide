@@ -43,3 +43,4 @@ secrets.properties
 .dev.vars
 *.tfstate
 *.log
+docs/private/
