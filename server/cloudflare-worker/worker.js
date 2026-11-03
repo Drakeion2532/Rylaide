@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Shubhan Punde · https://github.com/Drakeion2532/Rylaide · All rights reserved · sp2532-19f472e3b826
 // Rylaide relay on Cloudflare Workers (free plan). Same protocol as ../node-relay:
 // connect to wss://<worker>/room/<groupCode>, binary messages go to the other riders.
 export class Room {

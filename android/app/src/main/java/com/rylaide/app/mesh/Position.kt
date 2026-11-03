@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Shubhan Punde · https://github.com/Drakeion2532/Rylaide · All rights reserved · sp2532-19f472e3b826
 package com.rylaide.app.mesh
 
 import kotlin.math.asin

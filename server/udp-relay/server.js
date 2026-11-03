@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Shubhan Punde · https://github.com/Drakeion2532/Rylaide · All rights reserved · sp2532-19f472e3b826
 // Rylaide UDP relay. Fastest internet path: no connection, no queue, lost packets are just skipped.
 // Datagrams: 1 [len][room] join/keep-alive -> server answers [3]
 //            2 [len][room][data] -> forwarded as [2][data] to the other riders in the room

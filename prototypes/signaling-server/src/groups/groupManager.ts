@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Shubhan Punde · https://github.com/Drakeion2532/Rylaide · All rights reserved · sp2532-19f472e3b826
 // Groups are ephemeral and in-memory for now - a ride group only needs to
 // exist for the duration of a ride. No database needed for v1.
 // If you later want groups to survive a server restart, swap this Map

@@ -160,3 +160,9 @@ No license has been chosen yet, so all rights are reserved (see [NOTICE](NOTICE)
 The code, name, logo and documents may not be copied, redistributed or used to train
 AI or machine-learning models without written permission. Security and privacy rules:
 [`docs/security-and-privacy.md`](docs/security-and-privacy.md).
+
+## Licence and credit
+
+© 2026 [Shubhan Punde](https://github.com/Drakeion2532). All rights reserved (see [NOTICE](NOTICE)). The code is public to read, not to copy or present as anyone else's work.
+
+<sub>Project ID: sp2532-19f472e3b826</sub>

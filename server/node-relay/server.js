@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Shubhan Punde · https://github.com/Drakeion2532/Rylaide · All rights reserved · sp2532-19f472e3b826
 // Rylaide relay (Node). Voice packets are tiny binary WebSocket messages.
 // A rider connects to /room/<groupCode>; whatever they send goes to every other
 // rider in the same room. Nothing is stored and nothing is decoded.
