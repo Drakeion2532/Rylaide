@@ -88,3 +88,32 @@ class SessionCryptoTest {
         assertEquals(expected, okm.joinToString("") { "%02x".format(it) })
     }
 }
+
+class RideKeysTest {
+    @Test fun sameCodeGivesSameKeysAndCanTalk() {
+        val a = RideKeys.fromCode("ROAD7788"); val b = RideKeys.fromCode("ROAD7788")
+        assertEquals(a.tag, b.tag); assertEquals(a.roomId, b.roomId)
+        val sealed = a.newCrypto().seal(4, 77, byteArrayOf(1, 2, 3))
+        assertArrayEquals(byteArrayOf(1, 2, 3), b.newCrypto().open(4, 77, sealed))
+    }
+
+    @Test fun differentCodeGivesDifferentTagRoomAndCannotTalk() {
+        val a = RideKeys.fromCode("ROAD7788"); val b = RideKeys.fromCode("ROAD7789")
+        assert(a.tag != b.tag); assert(a.roomId != b.roomId)
+        assertNull(b.newCrypto().open(4, 77, a.newCrypto().seal(4, 77, byteArrayOf(1))))
+    }
+
+    @Test fun tagAndRoomDoNotContainTheCode() {
+        val k = RideKeys.fromCode("ROAD7788")
+        assert(!k.tag.contains("ROAD", true)); assert(!k.roomId.contains("ROAD", true))
+        assertEquals(8, k.tag.length); assertEquals(24, k.roomId.length)
+    }
+
+    @Test fun countersSeparateForgedFromRepeats() {
+        val a = SessionCrypto(ByteArray(32) { 1 }); val b = SessionCrypto(ByteArray(32) { 1 })
+        val s = a.seal(4, 1, byteArrayOf(5))
+        b.open(4, 1, s); b.open(4, 1, s)
+        val bad = s.copyOf(); bad[10] = (bad[10].toInt() xor 1).toByte(); b.open(4, 1, bad)
+        assertEquals(1, b.replayed); assertEquals(1, b.forged)
+    }
+}

@@ -174,13 +174,12 @@ class MeshDiscoveryManager(
             if (me != null && System.currentTimeMillis() - myPositionAtMs < POSITION_EXPIRY_MS &&
                 (connected.isNotEmpty() || internet.up)
             ) {
-                val msg = RelayPacket.encode(
-                    RelayPacket.TYPE_POSITION, myOrigin, RelayPacket.DEFAULT_TTL,
-                    positionSeq, PositionCodec.encode(me)
-                )
+                val msg = sealed(RelayPacket.TYPE_POSITION, positionSeq, PositionCodec.encode(me))
                 positionSeq = (positionSeq + 1) and 0xFFFF
-                if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
-                internet.send(msg)
+                if (msg != null) {
+                    if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+                    internet.send(msg)
+                }
             }
             mainHandler.postDelayed(this, POSITION_INTERVAL_MS)
         }
@@ -190,18 +189,29 @@ class MeshDiscoveryManager(
         override fun run() {
             if (!running) return
             if (connected.isNotEmpty() || internet.up) {
-                val msg = RelayPacket.encode(
-                    RelayPacket.TYPE_PRESENCE, myOrigin, RelayPacket.DEFAULT_TTL,
-                    presenceSeq, displayName.toByteArray(Charsets.UTF_8)
-                )
+                val msg = sealed(RelayPacket.TYPE_PRESENCE, presenceSeq, displayName.toByteArray(Charsets.UTF_8))
                 presenceSeq = (presenceSeq + 1) and 0xFFFF
-                if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
-                internet.send(msg)
+                if (msg != null) {
+                    if (connected.isNotEmpty()) client.sendPayload(connected.keys.toList(), Payload.fromBytes(msg))
+                    internet.send(msg)
+                }
             }
             mainHandler.postDelayed(this, PRESENCE_INTERVAL_MS)
         }
     }
     private var groupCode: String = ""
+    @Volatile private var groupTag: String = ""
+    @Volatile private var crypto: SessionCrypto? = null
+
+    /** Packets refused as forged / as repeats (repeats are normal when two roads carry the same voice). */
+    val cryptoForged: Int get() = crypto?.forged ?: 0
+    val cryptoRepeats: Int get() = crypto?.replayed ?: 0
+    val encrypted: Boolean get() = crypto != null
+
+    private fun sealed(type: Byte, seq: Int, body: ByteArray): ByteArray? {
+        val c = crypto ?: return null
+        return RelayPacket.encode(type, myOrigin, RelayPacket.DEFAULT_TTL, seq, c.seal(type, myOrigin, body))
+    }
     private var displayName: String = ""
 
     @Volatile
@@ -302,7 +312,7 @@ class MeshDiscoveryManager(
         }
     }
 
-    private fun localEndpointName() = "$groupCode|$riderId|$displayName"
+    private fun localEndpointName() = "$groupTag|$riderId|$displayName"
 
     private fun parse(endpointName: String): Triple<String, String, String>? {
         val parts = endpointName.split("|", limit = 3)
@@ -341,6 +351,13 @@ class MeshDiscoveryManager(
         listener.onStatus("Link mode: " + (if (twoPhoneFastMode) "2-phone fast (point-to-point)" else "group (cluster)") + ", link type: ${linkType.label}")
         this.groupCode = groupCode.trim().uppercase().replace("|", "")
         this.displayName = displayName.trim().replace("|", "").ifEmpty { "Rider" }
+        if (this.groupCode.length < RideKeys.MIN_GOOD_CODE_LENGTH) {
+            listener.onStatus("Warning: the group code is short. Anyone who guesses it can listen. Use ${RideKeys.MIN_GOOD_CODE_LENGTH} or more random characters.")
+        }
+        val keys = RideKeys.fromCode(this.groupCode)
+        groupTag = keys.tag
+        crypto = keys.newCrypto()
+        listener.onStatus("Encryption: on (voice, names and positions are encrypted with a key made from the group code)")
         running = true
         startedAtMs = System.currentTimeMillis()
         lastSearchRestartMs = startedAtMs
@@ -368,7 +385,7 @@ class MeshDiscoveryManager(
         if (relayServerUrl.isNotBlank()) {
             val udp = relayServerUrl.trim().startsWith("udp://")
             internet = if (udp) UdpLink(internetListener) else InternetLink(internetListener)
-            internet.start(relayServerUrl, this.groupCode)
+            internet.start(relayServerUrl, keys.roomId)
             listener.onStatus("Internet path: connecting to the relay server (" + (if (udp) "UDP, fastest" else "WebSocket") + ")…")
         } else {
             listener.onStatus("Internet path: off (no relay server set). Offline link only.")
@@ -467,10 +484,7 @@ class MeshDiscoveryManager(
     fun sendAudio(packet: ByteArray) {
         if (packet.size < 3) return
         val seq = ((packet[0].toInt() and 0xFF) shl 8) or (packet[1].toInt() and 0xFF)
-        val message = RelayPacket.encode(
-            RelayPacket.TYPE_AUDIO, myOrigin, RelayPacket.DEFAULT_TTL, seq,
-            packet.copyOfRange(2, packet.size)
-        )
+        val message = sealed(RelayPacket.TYPE_AUDIO, seq, packet.copyOfRange(2, packet.size)) ?: return
         if (transports.send(message, Priority.VOICE) == 0 && connected.isNotEmpty()) audioDropped++
     }
 
@@ -544,7 +558,7 @@ class MeshDiscoveryManager(
     private val discoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             val (code, theirId, _) = parse(info.endpointName) ?: return
-            if (code != groupCode || theirId == riderId) return
+            if (code != groupTag || theirId == riderId) return
             if (discovered.put(endpointId, theirId) == null) {
                 listener.onStatus("${stamp()} Found rider ${parse(info.endpointName)?.third ?: theirId}")
             }
@@ -569,7 +583,7 @@ class MeshDiscoveryManager(
     private val lifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             val parsed = parse(info.endpointName)
-            if (parsed == null || parsed.first != groupCode) {
+            if (parsed == null || parsed.first != groupTag) {
                 client.rejectConnection(endpointId)
                 pending.remove(endpointId)
                 return
@@ -651,6 +665,10 @@ class MeshDiscoveryManager(
     /** Plays a message that came from a rider (maybe far away) and passes it on to the others. */
     private fun handleRelayed(fromEndpointId: String, bytes: ByteArray) {
         val p = RelayPacket.parse(bytes) ?: return
+        // Check and decrypt first: anything forged, from another ride, or a repeat is dropped
+        // here, and is never played or passed on to other riders.
+        val c = crypto ?: return
+        val plain = c.open(p.type, p.origin, bytes.copyOfRange(RelayPacket.HEADER_SIZE, bytes.size)) ?: return
         val fromInternet = fromEndpointId == INTERNET
         if (fromInternet) internetLastSeen[p.origin] = System.currentTimeMillis()
         val decision = router.accept(p.type, p.origin, p.seq, p.ttl)
@@ -670,13 +688,17 @@ class MeshDiscoveryManager(
         if (!decision.deliver) return
         if (p.type == RelayPacket.TYPE_AUDIO) {
             if (fromInternet) playedViaInternet++ else playedViaNearby++
-            listener.onAudioFrame(originKey(p.origin), bytes.copyOfRange(RelayPacket.SEQ_OFFSET, bytes.size))
+            val frame = ByteArray(2 + plain.size)
+            frame[0] = bytes[RelayPacket.SEQ_OFFSET]
+            frame[1] = bytes[RelayPacket.SEQ_OFFSET + 1]
+            System.arraycopy(plain, 0, frame, 2, plain.size)
+            listener.onAudioFrame(originKey(p.origin), frame)
         } else if (p.type == RelayPacket.TYPE_POSITION) {
-            PositionCodec.decode(bytes, RelayPacket.HEADER_SIZE)?.let {
+            PositionCodec.decode(plain, 0)?.let {
                 positions[p.origin] = SeenPosition(it, System.currentTimeMillis())
             }
         } else {
-            val name = String(bytes, RelayPacket.HEADER_SIZE, bytes.size - RelayPacket.HEADER_SIZE, Charsets.UTF_8)
+            val name = String(plain, Charsets.UTF_8)
             reach[p.origin] = ReachEntry(name, RelayPacket.hopsTravelled(p.ttl), System.currentTimeMillis())
         }
     }

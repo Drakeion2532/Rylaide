@@ -45,6 +45,14 @@ class SessionCrypto(rideSecret: ByteArray, private val random: SecureRandom = Se
     private val sessionId = random.nextInt()
     private var counter = 0
 
+    /** Packets refused because they failed the check (wrong ride, damaged or forged). */
+    @Volatile var forged = 0
+        private set
+
+    /** Packets refused because that exact packet or a much older one was already seen (normal when two roads carry the same voice). */
+    @Volatile var replayed = 0
+        private set
+
     private class Window { var highest = -1L; var bits = 0L }
     private val windows = HashMap<Long, Window>()
 
@@ -67,7 +75,7 @@ class SessionCrypto(rideSecret: ByteArray, private val random: SecureRandom = Se
     /** Returns the plaintext, or null if the packet is forged, damaged, from another ride, or a repeat. */
     @Synchronized
     fun open(type: Byte, origin: Int, body: ByteArray): ByteArray? {
-        if (body.size < OVERHEAD) return null
+        if (body.size < OVERHEAD) { forged++; return null }
         val bb = ByteBuffer.wrap(body)
         val sid = bb.int
         val ctr = bb.int
@@ -77,9 +85,12 @@ class SessionCrypto(rideSecret: ByteArray, private val random: SecureRandom = Se
             c.updateAAD(aad(type, origin))
             c.doFinal(body, 8, body.size - 8)
         } catch (_: Exception) {
+            forged++
             return null
         }
-        return if (acceptCounter(origin, sid, ctr.toLong() and 0xFFFFFFFFL)) plain else null
+        if (acceptCounter(origin, sid, ctr.toLong() and 0xFFFFFFFFL)) return plain
+        replayed++
+        return null
     }
 
     private fun acceptCounter(origin: Int, sid: Int, ctr: Long): Boolean {
@@ -99,4 +110,38 @@ class SessionCrypto(rideSecret: ByteArray, private val random: SecureRandom = Se
         w.bits = w.bits or mask
         return true
     }
+}
+
+/**
+ * Everything a ride needs, made from the group code the riders type.
+ *
+ * The code is stretched (PBKDF2) into the ride secret. From it come the encryption key (inside
+ * [SessionCrypto]), a short [tag] that riders advertise so they can find each other without
+ * broadcasting the code, and a [roomId] for the relay server, so the server never sees the code.
+ *
+ * Honest limit: this is only as strong as the code. A short or common code ("TEST") can be
+ * guessed. Use 8 or more random characters. A QR invite with a random secret comes later.
+ */
+class RideKeys private constructor(val secret: ByteArray) {
+    companion object {
+        const val MIN_GOOD_CODE_LENGTH = 8
+        private const val ITERATIONS = 60_000
+
+        fun fromCode(code: String): RideKeys {
+            val spec = javax.crypto.spec.PBEKeySpec(code.toCharArray(), "rylaide-code-v1".toByteArray(), ITERATIONS, 256)
+            val secret = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            return RideKeys(secret)
+        }
+    }
+
+    private fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
+    private val salt = "rylaide-ride-v1".toByteArray()
+
+    /** 8 hex characters, safe to broadcast: it cannot be turned back into the code. */
+    val tag: String = hex(Hkdf.derive(secret, salt, "tag".toByteArray(), 4))
+
+    /** Room name on the relay server. */
+    val roomId: String = hex(Hkdf.derive(secret, salt, "room".toByteArray(), 12))
+
+    fun newCrypto(): SessionCrypto = SessionCrypto(secret)
 }

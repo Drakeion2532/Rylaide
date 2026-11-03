@@ -242,6 +242,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
         if (vm.farthestLine.isNotEmpty()) Text(vm.farthestLine)
         Text("Riders you can hear: $reachText")
         Text(vm.sessionText)
+        Text(vm.encryptionText)
         Text(vm.playedText)
         Text("Estimated delay: about $delayMs ms (your headset adds more: Bluetooth about 100 to 200 ms)")
         Text(if (rtt < 0) "Link delay: not measured yet   ·   dropped links: $drops" else "Link delay (round trip): $rtt ms, worst of last 10: $rttWorst ms   ·   dropped links: $drops   ·   voice skipped while link backed up: ${vm.audioDropped}")
