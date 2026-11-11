@@ -12,7 +12,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,7 +49,7 @@ import kotlinx.coroutines.delay
  */
 class MeshTestActivity : ComponentActivity() {
 
-    private val viewModel: MeshTestViewModel by viewModels()
+    private val viewModel: MeshTestViewModel by lazy { SharedViewModel.get(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -254,6 +253,18 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             Text(if (vm.delayTestRunning) "Measuring delay..." else "Measure delay (10 beeps, mic muted)")
         }
         Text(vm.delayTestText)
+        val logContext = androidx.compose.ui.platform.LocalContext.current
+        val logCopied = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        androidx.compose.material3.OutlinedButton(
+            onClick = {
+                val cm = logContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Rylaide log", vm.exportLog()))
+                logCopied.value = true
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (logCopied.value) "Log copied (code and relay hidden)" else "Copy log (code and relay hidden)")
+        }
         Text("Lost and patched: $concealed   ·   too late: $late   ·   buffered: $buffered ms")
         Text("Mic level: ${level.toInt()}   (your voice is sent above ${gate.toInt()}, boost x${"%.1f".format(boost)})")
         Row(

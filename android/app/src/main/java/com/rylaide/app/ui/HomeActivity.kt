@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 
 /**
  * Entry point. All actual UI lives in Compose screens (see RylaideApp.kt,
@@ -14,7 +13,7 @@ import androidx.activity.viewModels
  * when the screen rotates.
  */
 class HomeActivity : ComponentActivity() {
-    private val viewModel: MeshTestViewModel by viewModels()
+    private val viewModel: MeshTestViewModel by lazy { SharedViewModel.get(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

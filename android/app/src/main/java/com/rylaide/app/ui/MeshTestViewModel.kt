@@ -423,8 +423,25 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     }
 
     /** Call only after the runtime permissions have been granted. */
+    private var lastGroupCode = ""
+
+    /**
+     * The log as plain text, oldest line first, for pasting into a message. The group
+     * code and the relay address are replaced so nothing private is shared by accident.
+     */
+    fun exportLog(): String {
+        var text = "Rylaide log (group code and relay address hidden)\n" +
+            "$sessionText\n$delayTestText\nVoice packets sent ${framesSent.get()}, received ${framesReceived.get()}\n\n" +
+            log.reversed().joinToString("\n")
+        if (lastGroupCode.isNotBlank()) text = text.replace(lastGroupCode, "<code>")
+        val relay = relayUrl.trim()
+        if (relay.isNotBlank()) text = text.replace(relay, "<relay>")
+        return text
+    }
+
     fun start(groupCode: String, name: String) {
         if (running) return
+        lastGroupCode = groupCode
         val context = getApplication<Application>()
         audioRoute = routeManager.connectBestAvailableRoute().name
         framesSent.set(0)
@@ -457,7 +474,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 26, staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 27, copy log + shared engine + staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
