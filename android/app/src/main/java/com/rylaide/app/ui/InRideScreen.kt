@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -79,6 +80,8 @@ fun InRideScreen(vm: MeshTestViewModel, rideCode: String, gloveMode: Boolean, on
     var delayMs by remember { mutableStateOf(0) }
     var micBlocked by remember { mutableStateOf(false) }
     var encrypted by remember { mutableStateOf(true) }
+    var summary by remember { mutableStateOf("") }
+    var logCopied by remember { mutableStateOf(false) }
 
     // The engine keeps its counters in plain fields, so read them twice a second.
     LaunchedEffect(Unit) {
@@ -92,6 +95,7 @@ fun InRideScreen(vm: MeshTestViewModel, rideCode: String, gloveMode: Boolean, on
             farthest = vm.farthestLine
             delayMs = vm.estimatedDelayMs
             encrypted = vm.isEncrypted
+            summary = vm.testSummary
             delay(500)
         }
     }
@@ -187,6 +191,42 @@ fun InRideScreen(vm: MeshTestViewModel, rideCode: String, gloveMode: Boolean, on
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Ride test: the numbers a road test needs, readable at a glance.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Ride test", style = MaterialTheme.typography.titleSmall, color = onSurface)
+                Text(summary, color = onSurface, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val canMeasure = !vm.delayTestRunning && !isLive
+                    TestButton(
+                        label = if (vm.delayTestRunning) "Measuring…" else "Measure delay",
+                        enabled = canMeasure,
+                        tall = gloveMode,
+                        modifier = Modifier.weight(1f)
+                    ) { vm.runDelayTest() }
+                    TestButton(
+                        label = if (logCopied) "Log copied" else "Copy log",
+                        enabled = true,
+                        tall = gloveMode,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("Rylaide log", vm.exportLog()))
+                        logCopied = true
+                    }
+                }
+                Text(
+                    if (isLive) "Mute the mic to measure delay. The other phone answers the beeps by itself."
+                    else "Measure delay plays 10 beeps (about 20 s). The copied log hides the ride code.",
+                    color = onSurface.copy(alpha = 0.6f), fontSize = 11.sp
+                )
+            }
             Text("Map goes here later", color = onSurface.copy(alpha = 0.4f), fontSize = 12.sp)
             if (distance.isNotEmpty()) Text(distance, color = onSurface, fontSize = 13.sp)
             if (farthest.isNotEmpty()) Text(farthest, color = onSurface, fontSize = 13.sp)
@@ -259,6 +299,22 @@ fun InRideScreen(vm: MeshTestViewModel, rideCode: String, gloveMode: Boolean, on
             color = onSurface.copy(alpha = 0.6f),
             fontSize = 12.sp
         )
+    }
+}
+
+@Composable
+private fun TestButton(label: String, enabled: Boolean, tall: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    val color = if (enabled) primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    Box(
+        modifier = modifier
+            .height(if (tall) 56.dp else 44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .border(BorderStroke(1.dp, color), RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = color, fontSize = 14.sp)
     }
 }
 
