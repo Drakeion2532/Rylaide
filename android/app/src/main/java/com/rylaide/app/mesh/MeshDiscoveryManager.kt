@@ -85,7 +85,8 @@ class MeshDiscoveryManager(
         private const val POSITION_EXPIRY_MS = 30_000L
         private const val PRESENCE_INTERVAL_MS = 3000L
         private const val PRESENCE_EXPIRY_MS = 10000L
-        private const val RETRY_DELAY_MS = 2000L
+        // A connection request that has had no answer for this long is treated as lost.
+        private const val PENDING_TIMEOUT_MS = 12_000L
         // The phone with the larger id waits this long for the other phone to
         // connect first, then requests the connection itself. This avoids the
         // long waits when only one of the two phones manages to discover the other.
@@ -225,6 +226,8 @@ class MeshDiscoveryManager(
     // endpointId -> remote riderId, for phones we have seen but may not be connected to
     private val discovered = ConcurrentHashMap<String, String>()
     private val pending = ConcurrentHashMap.newKeySet<String>()
+    private val pendingSince = ConcurrentHashMap<String, Long>()
+    private val retryAttempts = ConcurrentHashMap<String, Int>()
 
     // endpointId -> display name shown in the UI
     private val names = ConcurrentHashMap<String, String>()
@@ -441,6 +444,14 @@ class MeshDiscoveryManager(
     private val watchdog = object : Runnable {
         override fun run() {
             if (!running) return
+            // A request nobody answered would otherwise block every later try.
+            val nowMs = System.currentTimeMillis()
+            for ((id, since) in pendingSince.entries.toList()) {
+                if (nowMs - since > PENDING_TIMEOUT_MS) {
+                    pendingSince.remove(id)
+                    if (pending.remove(id)) listener.onStatus("${stamp()} A connection request got no answer. Trying again.")
+                }
+            }
             if (connected.isEmpty() && pending.isEmpty()) {
                 if (discovered.isNotEmpty()) {
                     listener.onStatus("${stamp()} Found a rider, not connected yet. Asking again…")
@@ -471,6 +482,8 @@ class MeshDiscoveryManager(
         connected.clear()
         discovered.clear()
         pending.clear()
+        pendingSince.clear()
+        retryAttempts.clear()
         names.clear()
         notifyPeers()
     }
@@ -526,6 +539,7 @@ class MeshDiscoveryManager(
 
     private fun requestConnectionTo(endpointId: String) {
         if (!running || connected.containsKey(endpointId) || !pending.add(endpointId)) return
+        pendingSince[endpointId] = System.currentTimeMillis()
         listener.onStatus("${stamp()} Asking ${names[endpointId] ?: endpointId} to connect…")
         val builder = ConnectionOptions.Builder()
         when (linkType) {
@@ -551,8 +565,25 @@ class MeshDiscoveryManager(
                             }
                         }, 1000L)
                     }
+                } else {
+                    // 8012 and friends: usually both phones asked at the same moment.
+                    // Retry on a staggered schedule instead of waiting for the watchdog.
+                    scheduleRetry(endpointId)
                 }
             }
+    }
+
+    /** Asks again after a failure or a drop, staggered so the two phones do not cross requests. */
+    private fun scheduleRetry(endpointId: String) {
+        if (!running) return
+        val theirId = discovered[endpointId] ?: return
+        val attempt = (retryAttempts.merge(endpointId, 1, Int::plus) ?: 1) - 1
+        val wait = ReconnectPolicy.delayMs(attempt, riderId < theirId, Math.random())
+        mainHandler.postDelayed({
+            if (running && !connected.containsKey(endpointId) && discovered.containsKey(endpointId)) {
+                requestConnectionTo(endpointId)
+            }
+        }, wait)
     }
 
     private val discoveryCallback = object : EndpointDiscoveryCallback() {
@@ -596,7 +627,9 @@ class MeshDiscoveryManager(
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             pending.remove(endpointId)
+            pendingSince.remove(endpointId)
             if (result.status.isSuccess) {
+                retryAttempts.remove(endpointId)
                 val name = names[endpointId] ?: endpointId
                 connected[endpointId] = name
                 val seconds = (System.currentTimeMillis() - startedAtMs) / 1000
@@ -610,9 +643,7 @@ class MeshDiscoveryManager(
             } else {
                 listener.onStatus("Could not connect (${result.status.statusMessage ?: result.status.statusCode}), trying again")
                 // Try again shortly if they are still around.
-                if (running && discovered.containsKey(endpointId)) {
-                    mainHandler.postDelayed({ requestConnectionTo(endpointId) }, RETRY_DELAY_MS)
-                }
+                scheduleRetry(endpointId)
             }
         }
 
@@ -631,9 +662,7 @@ class MeshDiscoveryManager(
             listener.onStatus("A rider went out of range. Reconnecting…$where")
             // If they are still around, try again. Discovery stays on, so if
             // they come back later it will find them again by itself.
-            if (running && discovered.containsKey(endpointId)) {
-                mainHandler.postDelayed({ requestConnectionTo(endpointId) }, RETRY_DELAY_MS)
-            }
+            scheduleRetry(endpointId)
         }
     }
 
