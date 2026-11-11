@@ -81,6 +81,25 @@ class IntercomAudioEngine(
         private set
     private var zeroFrames = 0
 
+    // ---- delay test (see ToneProbe) ----
+    @Volatile private var toneFreq = 0.0
+    @Volatile private var toneFramesLeft = 0
+    private var tonePhase = 0
+    /** System.nanoTime() when the first frame of the latest beep was handed to the link. */
+    @Volatile var lastToneSentNs = 0L
+        private set
+    /** Called on the playback thread when a beep is heard just before it is played: (pitch, nanoTime). */
+    @Volatile var onToneHeard: ((Double, Long) -> Unit)? = null
+    private var toneHeardActive = false
+
+    /** Sends a short beep through the normal voice path. Safe from any thread. */
+    fun injectTone(freq: Double) {
+        if (!running || toneFramesLeft > 0) return
+        toneFreq = freq
+        tonePhase = 0
+        toneFramesLeft = ToneProbe.TONE_FRAMES
+    }
+
     /** How much the app is boosting your voice right now (1.0 = no boost). */
     val micBoost: Double get() = autoGain.currentGain
 
@@ -266,6 +285,16 @@ class IntercomAudioEngine(
                 read += n
             }
             if (!running) return
+            if (toneFramesLeft > 0) {
+                // Delay test: replace this mic frame with the next piece of the beep.
+                ToneProbe.fill(buffer, toneFreq, tonePhase)
+                tonePhase += FRAME_SAMPLES
+                val first = toneFramesLeft == ToneProbe.TONE_FRAMES
+                sendFrame(buffer)
+                if (first) lastToneSentNs = System.nanoTime()
+                toneFramesLeft--
+                continue
+            }
             var allZero = true
             for (v in buffer) if (v.toInt() != 0) { allZero = false; break }
             zeroFrames = if (allZero) zeroFrames + 1 else 0
@@ -325,6 +354,7 @@ class IntercomAudioEngine(
         val mix = IntArray(FRAME_SAMPLES)
         val pcm = ShortArray(FRAME_SAMPLES)
         val out = ShortArray(FRAME_SAMPLES)
+        val heard = ShortArray(FRAME_SAMPLES)
         while (running) {
             java.util.Arrays.fill(mix, 0)
             for (stream in peers.values) {
@@ -334,6 +364,17 @@ class IntercomAudioEngine(
                     JitterBuffer.Result.Nothing -> false
                 }
                 if (ok) for (i in 0 until FRAME_SAMPLES) mix[i] += pcm[i].toInt()
+            }
+            val heardCallback = onToneHeard
+            if (heardCallback != null) {
+                for (i in 0 until FRAME_SAMPLES) heard[i] = mix[i].coerceIn(-32768, 32767).toShort()
+                val f = ToneProbe.detect(heard)
+                if (f > 0.0 && !toneHeardActive) {
+                    toneHeardActive = true
+                    heardCallback(f, System.nanoTime())
+                } else if (f == 0.0) {
+                    toneHeardActive = false
+                }
             }
             val boost = playbackBoost
             for (i in 0 until FRAME_SAMPLES) {

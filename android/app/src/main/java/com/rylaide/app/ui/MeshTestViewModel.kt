@@ -291,6 +291,73 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
             return 20 + 10 + 20 + link + jitter + engine.playbackBufferMs
         }
 
+    // ---- delay test: this phone sends beeps, the other phone answers ----
+    var delayTestText by mutableStateOf("Delay test: not run yet")
+        private set
+    var delayTestRunning by mutableStateOf(false)
+        private set
+    private val pongLatch = java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CountDownLatch?>(null)
+    @Volatile private var pongAtNs = 0L
+
+    /** Installed while running: answers a ping with a pong, and notes when a pong arrives. */
+    private fun installToneListener() {
+        engine.onToneHeard = { freq, atNs ->
+            if (freq == com.rylaide.app.audio.ToneProbe.PING_HZ) {
+                engine.injectTone(com.rylaide.app.audio.ToneProbe.PONG_HZ)
+            } else {
+                val latch = pongLatch.get()
+                if (latch != null) {
+                    pongAtNs = atNs
+                    latch.countDown()
+                }
+            }
+        }
+    }
+
+    /**
+     * Sends 10 beeps through the real voice path and times each answer. The other
+     * phone only needs to be running (it answers by itself). Mic must be muted on both.
+     */
+    fun runDelayTest() {
+        if (!running || delayTestRunning) return
+        delayTestRunning = true
+        delayTestText = "Delay test: running (you will hear beeps)..."
+        Thread({
+            val trips = ArrayList<Long>()
+            val total = 10
+            try {
+                for (i in 1..total) {
+                    if (!running) break
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    pongLatch.set(latch)
+                    engine.injectTone(com.rylaide.app.audio.ToneProbe.PING_HZ)
+                    if (latch.await(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                        val rttMs = (pongAtNs - engine.lastToneSentNs) / 1_000_000
+                        if (rttMs in 1L..2000L) trips.add(rttMs)
+                    }
+                    pongLatch.set(null)
+                    Thread.sleep(900)
+                }
+            } finally {
+                pongLatch.set(null)
+            }
+            val s = com.rylaide.app.audio.ToneProbe.summarize(total, trips)
+            val text = if (s.answered == 0) {
+                "Delay test: no answer. Is the other phone running and linked? Keep both mics muted."
+            } else {
+                val oneWay = s.medianMs / 2
+                "Delay test: ${s.answered} of ${s.sent} answered. Round trip min/median/max ${s.minMs}/${s.medianMs}/${s.maxMs} ms. " +
+                    "One way, from encoder to the speaker queue, about $oneWay ms (plus the phone's playback buffer ${engine.playbackBufferMs} ms). " +
+                    "Accuracy about plus or minus 30 ms. Does not include the microphone, the headset, or the sound travelling through air."
+            }
+            mainHandler.post {
+                delayTestText = text
+                delayTestRunning = false
+                addLog(text)
+            }
+        }, "rylaide-delay-test").start()
+    }
+
     /** True while the reducer thinks it hears wind. */
     val windDetected: Boolean get() = engine.noiseReducer.windDetected
 
@@ -363,6 +430,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         framesSent.set(0)
         framesReceived.set(0)
         engine.start()
+        installToneListener()
         applyRoute()
         mesh.start(groupCode, name, fastMode, linkType, relayUrl.trim())
         if (relayUrl.isNotBlank()) {
@@ -389,7 +457,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 24, real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 25, delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
@@ -408,6 +476,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         if (!running) return
         engine.micOpen = false
         micOpen = false
+        engine.onToneHeard = null
         engine.stop()
         mesh.stop()
         stopLocation()
