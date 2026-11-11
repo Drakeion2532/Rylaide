@@ -26,6 +26,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.rylaide.app.audio.AudioRouteManager
 import com.rylaide.app.audio.IntercomAudioEngine
 import com.rylaide.app.mesh.MeshDiscoveryManager
+import com.rylaide.app.mesh.SessionState
 import com.rylaide.app.service.RideService
 import java.util.concurrent.atomic.AtomicLong
 
@@ -70,6 +71,9 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
                 if (it.hops == 1) "${it.name} (direct)" else "${it.name} (${it.hops} hops)"
             }
         }
+    /** Riders we can hear (name, hops). 1 hop means direct. */
+    val reachableRiders: List<Pair<String, Int>> get() = mesh.reachable.map { it.name to it.hops }
+
     /** Address of the relay server for the internet path, e.g. wss://rylaide-relay.you.workers.dev. Empty = offline only. */
     var relayUrl by mutableStateOf(
         getApplication<Application>().getSharedPreferences("rylaide", Context.MODE_PRIVATE)
@@ -157,6 +161,8 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         farthestLine = if (farthestLinkedM > 0) "Farthest distance while linked: ${GeoMath.format(farthestLinkedM)}" else ""
     }
     val playedText: String get() = "Voice played from: internet ${mesh.playedViaInternet} · offline link ${mesh.playedViaNearby}"
+    val sessionState: SessionState get() = mesh.sessionState
+    val isEncrypted: Boolean get() = mesh.encrypted
     val encryptionText: String get() = if (!mesh.encrypted) "Encryption: off" else "Encryption: on · forged packets refused: ${mesh.cryptoForged} · repeats dropped: ${mesh.cryptoRepeats}"
     val sessionText: String get() = "Session: ${mesh.sessionState} (offline link ${mesh.offlinePathState}, internet ${mesh.internetPathState})"
 
@@ -383,7 +389,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 23, encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 24, real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"

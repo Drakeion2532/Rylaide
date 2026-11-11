@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +33,11 @@ fun HomeScreen(
     gloveMode: Boolean,
     onGloveModeChange: (Boolean) -> Unit,
     onCreateGroup: () -> Unit,
-    onJoinGroup: () -> Unit
+    onJoinGroup: () -> Unit,
+    riderName: String = "",
+    onRiderNameChange: (String) -> Unit = {},
+    message: String = "",
+    onOpenDiagnostics: (() -> Unit)? = null
 ) {
     val iconCircleSize = if (gloveMode) 52.dp else 44.dp
 
@@ -48,6 +53,15 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(8.dp))
         GloveModeRow(gloveMode = gloveMode, onGloveModeChange = onGloveModeChange)
 
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = riderName,
+            onValueChange = onRiderNameChange,
+            label = { Text("Your name (other riders see this)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         OptionCard(
@@ -61,10 +75,23 @@ fun HomeScreen(
         OptionCard(
             emoji = "👥",
             title = "Join a group",
-            subtitle = "Enter a code or find nearby riders",
+            subtitle = "Enter the ride code the leader shared",
             iconCircleSize = iconCircleSize,
             onClick = onJoinGroup
         )
+        if (message.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(message, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (onOpenDiagnostics != null) {
+            Text(
+                "Diagnostics (test screen)",
+                modifier = Modifier.fillMaxWidth().clickable { onOpenDiagnostics() }.padding(12.dp),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
     }
 }
 

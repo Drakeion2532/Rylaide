@@ -14,7 +14,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.rylaide.app.ui.MeshTestActivity
+import com.rylaide.app.ui.HomeActivity
 
 /**
  * Keeps Rylaide alive and allowed to use the mic, location and Bluetooth while the
@@ -89,7 +89,7 @@ class RideService : Service() {
     private fun buildNotification(): Notification {
         val open = PendingIntent.getActivity(
             this, 0,
-            Intent(this, MeshTestActivity::class.java)
+            Intent(this, HomeActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

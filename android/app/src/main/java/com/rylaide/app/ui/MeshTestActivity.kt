@@ -82,7 +82,7 @@ class MeshTestActivity : ComponentActivity() {
     }
 }
 
-private fun requiredPermissions(): Array<String> {
+internal fun requiredPermissions(): Array<String> {
     val list = mutableListOf(Manifest.permission.RECORD_AUDIO)
     if (Build.VERSION.SDK_INT >= 31) {
         list += Manifest.permission.BLUETOOTH_ADVERTISE

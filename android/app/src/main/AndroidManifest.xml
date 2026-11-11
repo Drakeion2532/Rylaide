@@ -39,10 +39,10 @@
         android:allowBackup="false"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
-        <!-- Sprint 1 test screen is the launcher for now. Once the real Home
-             screen is ready, move the LAUNCHER filter back to HomeActivity. -->
+        <!-- The real Home screen is the launcher. The old test screen is kept as
+             Diagnostics, opened from a link on Home. -->
         <activity
-            android:name=".ui.MeshTestActivity"
+            android:name=".ui.HomeActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -51,7 +51,7 @@
         </activity>
 
         <activity
-            android:name=".ui.HomeActivity"
+            android:name=".ui.MeshTestActivity"
             android:exported="false" />
 
         <service
