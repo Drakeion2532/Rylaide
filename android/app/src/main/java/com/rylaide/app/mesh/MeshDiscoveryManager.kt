@@ -324,6 +324,9 @@ class MeshDiscoveryManager(
     }
 
     /** Times a connected phone dropped since Start (a rough measure of how stable the link is). */
+    /** First-connect and reconnect stopwatch, shown on the Diagnostics screen. */
+    val timings = LinkTimings()
+
     @Volatile var drops: Int = 0
         private set
 
@@ -363,6 +366,7 @@ class MeshDiscoveryManager(
         listener.onStatus("Encryption: on (voice, names and positions are encrypted with a key made from the group code)")
         running = true
         startedAtMs = System.currentTimeMillis()
+        timings.reset()
         lastSearchRestartMs = startedAtMs
         searchRestarts = 0
         firstConnectionLogged = false
@@ -632,6 +636,7 @@ class MeshDiscoveryManager(
                 retryAttempts.remove(endpointId)
                 val name = names[endpointId] ?: endpointId
                 connected[endpointId] = name
+                timings.onLinked()
                 val seconds = (System.currentTimeMillis() - startedAtMs) / 1000
                 if (!firstConnectionLogged) {
                     firstConnectionLogged = true
@@ -655,6 +660,7 @@ class MeshDiscoveryManager(
         override fun onDisconnected(endpointId: String) {
             val wasConnected = connected.remove(endpointId) != null
             if (wasConnected) drops++
+            if (wasConnected && connected.isEmpty()) timings.onAllLost()
             pending.remove(endpointId)
             notifyPeers()
             val remoteId = discovered[endpointId]

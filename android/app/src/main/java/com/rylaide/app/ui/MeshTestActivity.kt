@@ -119,6 +119,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
     var delayMs by remember { mutableStateOf(0) }
     var gate by remember { mutableStateOf(0.0) }
     var boost by remember { mutableStateOf(1.0) }
+    var summary by remember { mutableStateOf("") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -152,6 +153,7 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
             delayMs = vm.estimatedDelayMs
             gate = vm.gateLevel
             boost = vm.micBoost
+            summary = vm.testSummary
             delay(500)
         }
     }
@@ -169,6 +171,19 @@ fun MeshTestScreen(vm: MeshTestViewModel) {
                 "Use a headset or earphones, or keep the phones in different rooms, or the speaker will squeal.",
             style = MaterialTheme.typography.bodySmall
         )
+        if (vm.running || summary.contains("answered")) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "TEST SUMMARY\n$summary",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
 
         OutlinedTextField(
             value = groupCode,

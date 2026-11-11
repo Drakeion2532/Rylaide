@@ -205,6 +205,12 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     var fastMode by mutableStateOf(false)
     val linkDrops: Int get() = mesh.drops
 
+    /** The few numbers a range test needs, shown at the top of Diagnostics so nobody has to scroll. */
+    val testSummary: String
+        get() = mesh.timings.summary(mesh.drops) +
+            (if (farthestLine.isNotEmpty()) "\n$farthestLine" else "") +
+            "\n" + delayTestText.substringBefore(" One way").substringBefore(" Accuracy")
+
     private var noiseLevelState by mutableStateOf(com.rylaide.app.audio.NoiseSuppressor.Level.LOW)
     /** Strength of Rylaide's own wind and background noise reducer. Planned as a paid feature later. */
     var noiseLevel: com.rylaide.app.audio.NoiseSuppressor.Level
@@ -431,7 +437,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
      */
     fun exportLog(): String {
         var text = "Rylaide log (group code and relay address hidden)\n" +
-            "$sessionText\n$delayTestText\nVoice packets sent ${framesSent.get()}, received ${framesReceived.get()}\n\n" +
+            "$sessionText\n${mesh.timings.summary(mesh.drops)}\n$delayTestText\nVoice packets sent ${framesSent.get()}, received ${framesReceived.get()}\n\n" +
             log.reversed().joinToString("\n")
         if (lastGroupCode.isNotBlank()) text = text.replace(lastGroupCode, "<code>")
         val relay = relayUrl.trim()
@@ -474,7 +480,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 27, copy log + shared engine + staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 28, test summary at top + copy log + shared engine + staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
