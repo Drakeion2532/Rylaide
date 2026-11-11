@@ -36,6 +36,11 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscoveryManager.Listener {
 
+    companion object {
+        /** The free relay for the internet path. A public address, not a key: it only passes on sealed packets. */
+        const val DEFAULT_RELAY_URL = "wss://rylaide-relay.shubhanpunde.workers.dev"
+    }
+
     var running by mutableStateOf(false)
         private set
     var status by mutableStateOf("Not started")
@@ -77,9 +82,12 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
     /** Address of the relay server for the internet path, e.g. wss://rylaide-relay.you.workers.dev. Empty = offline only. */
     var relayUrl by mutableStateOf(
         getApplication<Application>().getSharedPreferences("rylaide", Context.MODE_PRIVATE)
-            .getString("relayUrl", "") ?: ""
+            .getString("relayUrl", "").orEmpty().ifBlank { DEFAULT_RELAY_URL }
     )
         private set
+
+    /** Type "off" in the relay field to ride offline only; an empty field goes back to the built-in relay on the next launch. */
+    private val relayForStart: String get() = relayUrl.trim().let { if (it.equals("off", ignoreCase = true)) "" else it }
 
     fun updateRelayUrl(value: String) {
         relayUrl = value
@@ -455,8 +463,8 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         engine.start()
         installToneListener()
         applyRoute()
-        mesh.start(groupCode, name, fastMode, linkType, relayUrl.trim())
-        if (relayUrl.isNotBlank()) {
+        mesh.start(groupCode, name, fastMode, linkType, relayForStart)
+        if (relayForStart.isNotBlank()) {
             try {
                 val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 cm.registerDefaultNetworkCallback(networkCallback)
@@ -480,7 +488,7 @@ class MeshTestViewModel(app: Application) : AndroidViewModel(app), MeshDiscovery
         fun granted(p: String) =
             ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
         addLog(
-            "Build 29, ride test panel on the ride screen + test summary at top + copy log + shared engine + staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
+            "Build 30, built-in relay address + ride test panel on the ride screen + test summary at top + copy log + shared engine + staggered reconnect + delay test beeps + real Home and ride screens + encryption + hidden group code + transport layer + session state + internet path + offline link, backlog guard + ride service + road fixes, relay through other riders + steady link type + noise levels + link mode switch + link delay readout + wind and noise reducer + auto device switching (Android ${android.os.Build.VERSION.SDK_INT}). Permissions: " +
                 "coarse=${granted(Manifest.permission.ACCESS_COARSE_LOCATION)} " +
                 "fine=${granted(Manifest.permission.ACCESS_FINE_LOCATION)} " +
                 "mic=${granted(Manifest.permission.RECORD_AUDIO)}"
